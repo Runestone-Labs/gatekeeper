@@ -315,9 +315,17 @@ Logs are:
 - Include policy hash (for forensics)
 - Secrets are redacted
 
+## Using with Real Agents
+
+Gatekeeper is designed to work with any agent that can make HTTP calls. It is intentionally agent-agnostic—it does not embed or depend on any specific framework.
+
+Any agent runtime that supports tool abstraction (LangChain, OpenAI Assistants, Claude, custom agents) can integrate by routing tool calls through the Gatekeeper API. See [INTEGRATING_AGENTS.md](INTEGRATING_AGENTS.md) for the integration pattern and an example adapter.
+
+This repository focuses on the enforcement boundary. Operating Gatekeeper with production agents typically requires centralized approvals, durable audit storage, and policy distribution—capabilities handled via a control plane.
+
 ## Enterprise Control Plane
 
-Coming soon: **Runestone Control Plane** provides:
+**Runestone Control Plane** provides:
 
 - **Managed Policies**: Version-controlled policy configuration with templates
 - **Searchable Audit**: Full-text search across all audit logs with compliance exports
@@ -356,6 +364,7 @@ npm start
 
 ## Documentation
 
+- [INTEGRATING_AGENTS.md](INTEGRATING_AGENTS.md) - Using Gatekeeper with real agents
 - [SECURITY.md](SECURITY.md) - Security policy and vulnerability reporting
 - [CONTRIBUTING.md](CONTRIBUTING.md) - How to contribute
 - [THREAT_MODEL.md](THREAT_MODEL.md) - Detailed security assumptions
