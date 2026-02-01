@@ -15,10 +15,10 @@
     "demo:record": "asciinema rec -q -c \"npm run demo\" demo.cast",
     "demo:gif": "vhs scripts/demo.tape",
     "control-plane": "tsx scripts/fake-control-plane.ts",
-    "wow": "tsx scripts/wow-demo.ts",
-    "wow:unsafe": "tsx scripts/wow-demo.ts unsafe",
-    "wow:safe": "tsx scripts/wow-demo.ts safe",
-    "wow:record": "vhs scripts/wow-demo.tape"
+    "gatekeeper": "tsx scripts/gatekeeper-demo.ts",
+    "gatekeeper:unsafe": "tsx scripts/gatekeeper-demo.ts unsafe",
+    "gatekeeper:safe": "tsx scripts/gatekeeper-demo.ts safe",
+    "gatekeeper:record": "vhs scripts/gatekeeper-demo.tape"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.2",

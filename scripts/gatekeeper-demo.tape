@@ -1,5 +1,5 @@
-Output wow-demo.mp4
-Output wow-demo.gif
+Output gatekeeper-demo.mp4
+Output gatekeeper-demo.gif
 
 Set Shell "bash"
 Set FontSize 18
@@ -8,10 +8,10 @@ Set Height 600
 Set Padding 20
 Set Theme "Builtin Solarized Dark"
 
-Type "npm run wow:unsafe"
+Type "npm run gatekeeper:unsafe"
 Enter
 Sleep 8s
 
-Type "npm run wow:safe"
+Type "npm run gatekeeper:safe"
 Enter
 Sleep 10s
