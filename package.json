@@ -14,7 +14,11 @@
     "demo": "tsx scripts/demo.ts",
     "demo:record": "asciinema rec -q -c \"npm run demo\" demo.cast",
     "demo:gif": "vhs scripts/demo.tape",
-    "control-plane": "tsx scripts/fake-control-plane.ts"
+    "control-plane": "tsx scripts/fake-control-plane.ts",
+    "wow": "tsx scripts/wow-demo.ts",
+    "wow:unsafe": "tsx scripts/wow-demo.ts unsafe",
+    "wow:safe": "tsx scripts/wow-demo.ts safe",
+    "wow:record": "vhs scripts/wow-demo.tape"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.2",
