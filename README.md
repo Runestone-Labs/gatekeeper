@@ -1,6 +1,6 @@
 # Runestone Agent Gatekeeper
 
-[![CI](https://github.com/runestone/gatekeeper/actions/workflows/ci.yml/badge.svg)](https://github.com/runestone/gatekeeper/actions/workflows/ci.yml)
+[![CI](https://github.com/Runestone-Labs/gatekeeper/actions/workflows/ci.yml/badge.svg)](https://github.com/Runestone-Labs/gatekeeper/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 A policy-based gatekeeper service that sits between AI agents and real-world tools (shell, HTTP, filesystem), enforcing approvals, denials, and audit logging.

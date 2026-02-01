@@ -10,4 +10,4 @@ Set Theme "Builtin Solarized Dark"
 
 Type "npm run gatekeeper"
 Enter
-Sleep 28s
+Sleep 18s

@@ -50,5 +50,5 @@ Initial public release.
 - SSRF protection blocks access to private IP ranges
 - Secrets are redacted from audit logs
 
-[Unreleased]: https://github.com/runestone/gatekeeper/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/runestone/gatekeeper/releases/tag/v0.1.0
+[Unreleased]: https://github.com/Runestone-Labs/gatekeeper/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/Runestone-Labs/gatekeeper/releases/tag/v0.1.0

@@ -70,7 +70,7 @@ These changes may be out of scope for this project.
 
 ```bash
 # Clone and install
-git clone https://github.com/runestone/gatekeeper.git
+git clone https://github.com/Runestone-Labs/gatekeeper.git
 cd gatekeeper
 npm install
 

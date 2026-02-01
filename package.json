@@ -6,12 +6,12 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/runestone/gatekeeper.git"
+    "url": "https://github.com/Runestone-Labs/gatekeeper.git"
   },
   "bugs": {
-    "url": "https://github.com/runestone/gatekeeper/issues"
+    "url": "https://github.com/Runestone-Labs/gatekeeper/issues"
   },
-  "homepage": "https://github.com/runestone/gatekeeper#readme",
+  "homepage": "https://github.com/Runestone-Labs/gatekeeper#readme",
   "keywords": [
     "ai",
     "agent",

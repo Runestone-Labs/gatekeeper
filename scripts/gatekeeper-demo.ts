@@ -297,7 +297,7 @@ async function runSafeDemo(): Promise<void> {
   console.log(`${c.cyan}${boxBottom()}${c.reset}`);
   console.log('');
 
-  await sleep(1500);
+  await sleep(800);
 
   cleanup();
 }
@@ -310,18 +310,18 @@ async function showClosing(): Promise<void> {
   console.log(`${c.dim}${hardBreak()}${c.reset}`);
   console.log('');
 
-  await sleep(500);
+  await sleep(300);
 
   console.log(`${c.bold}  AI agents don't fail because they're dumb.${c.reset}`);
   console.log(`${c.bold}  They fail because we trust them too much.${c.reset}`);
   console.log('');
 
-  await sleep(1500);
+  await sleep(800);
 
   console.log(`${c.white}${c.bold}  Agents need governance, not smarter prompts.${c.reset}`);
   console.log('');
 
-  await sleep(1000);
+  await sleep(500);
 
   console.log(`${c.dim}${hardBreak()}${c.reset}`);
   console.log('');
