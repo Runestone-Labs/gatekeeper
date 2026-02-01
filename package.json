@@ -10,7 +10,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "demo": "tsx scripts/demo.ts",
+    "demo:record": "asciinema rec -q -c \"npm run demo\" demo.cast",
+    "demo:gif": "vhs scripts/demo.tape"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.2",

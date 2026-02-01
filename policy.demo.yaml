@@ -1,0 +1,52 @@
+# Demo Policy - Deterministic outcomes for demonstration
+#
+# This policy produces predictable results:
+# - shell.exec: APPROVE (with deny patterns for dangerous commands)
+# - http.request: ALLOW (immediate execution)
+# - files.write: APPROVE (with extension blocklist)
+
+tools:
+  shell.exec:
+    decision: approve
+    deny_patterns:
+      - "rm -rf"
+      - "rm -r /"
+      - "curl.*\\|.*sh"
+      - "wget.*\\|.*sh"
+      - "chmod 777"
+      - "sudo"
+    allowed_cwd_prefixes:
+      - "/tmp/"
+      - "./"
+    max_output_bytes: 1048576
+    max_timeout_ms: 30000
+
+  http.request:
+    decision: allow
+    allowed_methods:
+      - GET
+      - POST
+    deny_domains:
+      - bit.ly
+      - pastebin.com
+      - evil.com
+    deny_ip_ranges:
+      - "127.0.0.0/8"
+      - "10.0.0.0/8"
+      - "172.16.0.0/12"
+      - "192.168.0.0/16"
+      - "169.254.0.0/16"
+    timeout_ms: 30000
+    max_body_bytes: 1048576
+
+  files.write:
+    decision: approve
+    allowed_paths:
+      - "/tmp/"
+      - "./data/"
+    deny_extensions:
+      - ".env"
+      - ".pem"
+      - ".key"
+      - ".crt"
+    max_size_bytes: 10485760
