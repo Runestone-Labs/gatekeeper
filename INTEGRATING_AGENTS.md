@@ -8,8 +8,10 @@ It does not embed or depend on any specific agent framework. Instead, it
 enforces a boundary at the point where agents attempt to interact with
 real systems (shell, filesystem, network, etc.).
 
-Any agent runtime that supports tool abstraction or function calls can
-integrate with Gatekeeper by routing those calls through the Gatekeeper API.
+In principle, agent runtimes that support tool abstraction or function calls
+could integrate with Gatekeeper by routing those calls through the Gatekeeper
+API. This integration pattern is conceptual—production use may require
+additional work depending on your agent framework and requirements.
 
 ## What This Repository Does
 
@@ -53,17 +55,17 @@ routes tool calls through an HTTP endpoint.
 
 ## Example Adapter
 
-See `examples/agent-adapter.ts` for an illustrative example of how an
-agent framework might route tool calls through Gatekeeper.
+See `examples/agent-adapter.ts` for an illustrative sketch of how an
+agent framework might route tool calls through Gatekeeper. This example
+is intentionally incomplete and not production-ready.
 
 ## Production Agents
 
-Gatekeeper is designed to work with real autonomous agents, including
-long-running and background workflows.
+This repository focuses on the enforcement boundary itself.
 
-This repository focuses on the enforcement boundary itself. Operating
-Gatekeeper with production agents typically requires centralized approvals,
-durable audit storage, and policy distribution—capabilities better handled
-via a control plane.
+Testing and operating Gatekeeper with long-running or production agents
+is an area we expect to evolve alongside a hosted control plane. Production
+use typically requires centralized approvals, durable audit storage, and
+policy distribution—capabilities that are out of scope for this repository.
 
 See [RUNESTONE_CLOUD.md](RUNESTONE_CLOUD.md) for the OSS/Cloud boundary.

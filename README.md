@@ -317,11 +317,11 @@ Logs are:
 
 ## Using with Real Agents
 
-Gatekeeper is designed to work with any agent that can make HTTP calls. It is intentionally agent-agnostic—it does not embed or depend on any specific framework.
+Gatekeeper is designed to be agent-agnostic. It does not embed or depend on any specific agent framework.
 
-Any agent runtime that supports tool abstraction (LangChain, OpenAI Assistants, Claude, custom agents) can integrate by routing tool calls through the Gatekeeper API. See [INTEGRATING_AGENTS.md](INTEGRATING_AGENTS.md) for the integration pattern and an example adapter.
+In principle, any agent that can route tool calls over HTTP could integrate with Gatekeeper. See [INTEGRATING_AGENTS.md](INTEGRATING_AGENTS.md) for the conceptual integration pattern.
 
-This repository focuses on the enforcement boundary. Operating Gatekeeper with production agents typically requires centralized approvals, durable audit storage, and policy distribution—capabilities handled via a control plane.
+This repository focuses on the enforcement boundary itself. Production agent integration is an area we expect to evolve alongside a hosted control plane.
 
 ## Enterprise Control Plane
 
