@@ -1,0 +1,33 @@
+# Test policy for unit and integration tests
+tools:
+  shell.exec:
+    decision: approve
+    deny_patterns:
+      - "rm -rf"
+      - "sudo"
+    allowed_cwd_prefixes:
+      - "/tmp/"
+    max_output_bytes: 1024
+    max_timeout_ms: 5000
+
+  files.write:
+    decision: approve
+    allowed_paths:
+      - "/tmp/"
+    deny_extensions:
+      - ".env"
+      - ".key"
+    max_size_bytes: 1024
+
+  http.request:
+    decision: allow
+    allowed_methods:
+      - GET
+      - POST
+    deny_domains:
+      - evil.com
+    deny_ip_ranges:
+      - "127.0.0.0/8"
+      - "10.0.0.0/8"
+    timeout_ms: 5000
+    max_body_bytes: 1024
