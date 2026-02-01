@@ -1,7 +1,30 @@
 {
   "name": "runestone-gatekeeper",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Policy-based gatekeeper for AI agent tool execution",
+  "author": "Runestone Labs",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/runestone/gatekeeper.git"
+  },
+  "bugs": {
+    "url": "https://github.com/runestone/gatekeeper/issues"
+  },
+  "homepage": "https://github.com/runestone/gatekeeper#readme",
+  "keywords": [
+    "ai",
+    "agent",
+    "governance",
+    "security",
+    "gatekeeper",
+    "policy",
+    "approval",
+    "audit"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "type": "module",
   "main": "src/server.ts",
   "scripts": {
@@ -18,7 +41,8 @@
     "gatekeeper": "tsx scripts/gatekeeper-demo.ts",
     "gatekeeper:unsafe": "tsx scripts/gatekeeper-demo.ts unsafe",
     "gatekeeper:safe": "tsx scripts/gatekeeper-demo.ts safe",
-    "gatekeeper:record": "vhs scripts/gatekeeper-demo.tape"
+    "gatekeeper:record": "vhs scripts/gatekeeper-demo.tape",
+    "gatekeeper:render": "bash scripts/render-video.sh"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.2",

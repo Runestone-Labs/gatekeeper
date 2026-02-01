@@ -1,5 +1,8 @@
 # Runestone Agent Gatekeeper
 
+[![CI](https://github.com/runestone/gatekeeper/actions/workflows/ci.yml/badge.svg)](https://github.com/runestone/gatekeeper/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+
 A policy-based gatekeeper service that sits between AI agents and real-world tools (shell, HTTP, filesystem), enforcing approvals, denials, and audit logging.
 
 ## What Problem This Solves
@@ -229,7 +232,7 @@ curl http://localhost:3847/health
 Response:
 ```json
 {
-  "version": "1.0.0",
+  "version": "0.1.0",
   "policyHash": "sha256:abc123...",
   "uptime": 3600,
   "pendingApprovals": 2,
@@ -302,7 +305,7 @@ All requests are logged via the configured audit sink. Default (jsonl) writes to
   "argsSummary": "{\"command\":\"ls -la\"}",
   "riskFlags": [],
   "policyHash": "sha256:abc123...",
-  "gatekeeperVersion": "1.0.0"
+  "gatekeeperVersion": "0.1.0"
 }
 ```
 
@@ -351,6 +354,15 @@ npm run dev
 npm start
 ```
 
+## Documentation
+
+- [SECURITY.md](SECURITY.md) - Security policy and vulnerability reporting
+- [CONTRIBUTING.md](CONTRIBUTING.md) - How to contribute
+- [THREAT_MODEL.md](THREAT_MODEL.md) - Detailed security assumptions
+- [CHANGELOG.md](CHANGELOG.md) - Release history
+- [GOVERNANCE.md](GOVERNANCE.md) - Project governance
+- [RUNESTONE_CLOUD.md](RUNESTONE_CLOUD.md) - OSS vs Cloud architecture
+
 ## License
 
-MIT
+Apache-2.0 - See [LICENSE](LICENSE) for details.

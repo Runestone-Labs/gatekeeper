@@ -7,22 +7,29 @@ dist/
 # Data directories (runtime)
 data/
 
-# Environment
+# Environment (secrets)
 .env
 .env.local
+.env.*.local
+
+# Policy (copy from policy.example.yaml)
+policy.yaml
 
 # IDE
 .vscode/
 .idea/
+*.swp
+*.swo
 
 # OS
 .DS_Store
+Thumbs.db
 
 # Test coverage
 coverage/
 
-# Logs
+# Logs and recordings
 *.log
-demo.cast
-gatekeeper-demo.mp4
-gatekeeper-demo.gif
+*.cast
+*.mp4
+*.gif
