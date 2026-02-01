@@ -15,6 +15,10 @@ function loadVersion(): string {
   }
 }
 
+export type ApprovalProviderType = 'local' | 'slack' | 'runestone';
+export type AuditSinkType = 'jsonl' | 'runestone';
+export type PolicySourceType = 'yaml' | 'runestone';
+
 export const config = {
   // Server
   port: parseInt(process.env.GATEKEEPER_PORT || '3847', 10),
@@ -30,6 +34,17 @@ export const config = {
 
   // Slack
   slackWebhookUrl: process.env.SLACK_WEBHOOK_URL || '',
+
+  // Provider selection
+  approvalProvider: (process.env.APPROVAL_PROVIDER || 'local') as ApprovalProviderType,
+  auditSink: (process.env.AUDIT_SINK || 'jsonl') as AuditSinkType,
+  policySource: (process.env.POLICY_SOURCE || 'yaml') as PolicySourceType,
+
+  // Demo mode - exposes approval URLs in responses
+  demoMode: process.env.DEMO_MODE === 'true',
+
+  // Logging
+  logLevel: process.env.LOG_LEVEL || 'info',
 
   // Version
   version: loadVersion(),

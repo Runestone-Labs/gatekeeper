@@ -1,40 +1,27 @@
-import { appendFileSync, mkdirSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
 import { config } from '../config.js';
 import { AuditEntry } from '../types.js';
-import { getPolicyHash } from '../policy/loadPolicy.js';
+import { getAuditSink, getPolicySource } from '../providers/index.js';
 
 /**
- * Write an audit entry to the daily log file.
+ * Write an audit entry via the configured audit sink.
  * SECURITY: Append-only, never mutate existing entries.
  */
 export function writeAuditLog(entry: Omit<AuditEntry, 'policyHash' | 'gatekeeperVersion'>): void {
-  // Ensure audit directory exists
-  if (!existsSync(config.auditDir)) {
-    mkdirSync(config.auditDir, { recursive: true });
-  }
-
-  // Get today's date for the filename
-  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-  const logFile = join(config.auditDir, `${today}.jsonl`);
+  const policySource = getPolicySource();
+  const auditSink = getAuditSink();
 
   // Build the full entry
   const fullEntry: AuditEntry = {
     ...entry,
-    policyHash: getPolicyHash(),
+    policyHash: policySource.getHash(),
     gatekeeperVersion: config.version,
   };
 
-  // Append to log file (JSONL format)
-  const line = JSON.stringify(fullEntry) + '\n';
-
-  try {
-    appendFileSync(logFile, line, 'utf-8');
-  } catch (err) {
-    // Log to stderr if we can't write to the audit log
+  // Write via the audit sink (async but fire-and-forget)
+  auditSink.write(fullEntry).catch(err => {
     console.error('Failed to write audit log:', err);
     console.error('Entry:', fullEntry);
-  }
+  });
 }
 
 /**

@@ -1,11 +1,10 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { verifyAndConsumeApproval } from './store.js';
-import { sendSlackActionNotification } from './slack.js';
 import { executeTool } from '../tools/index.js';
-import { loadPolicy } from '../policy/loadPolicy.js';
 import { logApprovalConsumed, logToolExecution } from '../audit/logger.js';
 import { config } from '../config.js';
 import { redactSecrets } from '../utils.js';
+import { getApprovalProvider, getPolicySource } from '../providers/index.js';
 
 interface ApprovalParams {
   id: string;
@@ -79,11 +78,11 @@ async function handleApprovalAction(
       action: 'denied',
     });
 
-    // Notify Slack
-    await sendSlackActionNotification({
-      approval,
-      action: 'denied',
-    });
+    // Notify via approval provider
+    const provider = getApprovalProvider();
+    if (provider.notifyResult) {
+      await provider.notifyResult(approval, 'denied');
+    }
 
     reply.send({
       success: true,
@@ -94,7 +93,8 @@ async function handleApprovalAction(
   }
 
   // action === 'approve' - execute the tool
-  const policy = loadPolicy(config.policyPath);
+  const policySource = getPolicySource();
+  const policy = await policySource.load();
   const toolPolicy = policy.tools[approval.toolName];
 
   if (!toolPolicy) {
@@ -130,12 +130,15 @@ async function handleApprovalAction(
     resultSummary,
   });
 
-  // Notify Slack
-  await sendSlackActionNotification({
-    approval,
-    action: 'approved',
-    result: result.success ? 'Execution successful' : result.error,
-  });
+  // Notify via approval provider
+  const approvalProvider = getApprovalProvider();
+  if (approvalProvider.notifyResult) {
+    await approvalProvider.notifyResult(
+      approval,
+      'approved',
+      result.success ? 'Execution successful' : result.error
+    );
+  }
 
   reply.send({
     success: result.success,

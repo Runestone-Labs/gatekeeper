@@ -3,7 +3,6 @@ import { mkdirSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const TEST_AUDIT_DIR = '/tmp/gatekeeper-test-audit';
-const TEST_POLICY_PATH = join(process.cwd(), 'tests/fixtures/test-policy.yaml');
 
 // Mock config before importing logger
 vi.mock('../../src/config.js', () => ({
@@ -11,13 +10,41 @@ vi.mock('../../src/config.js', () => ({
     auditDir: '/tmp/gatekeeper-test-audit',
     version: '1.0.0-test',
     policyPath: join(process.cwd(), 'tests/fixtures/test-policy.yaml'),
+    approvalProvider: 'local',
+    auditSink: 'jsonl',
+    policySource: 'yaml',
   },
 }));
 
-// Mock policy hash
-vi.mock('../../src/policy/loadPolicy.js', () => ({
-  getPolicyHash: () => 'sha256:test-policy-hash',
-  loadPolicy: () => ({ tools: {} }),
+// Mock providers
+vi.mock('../../src/providers/index.js', () => ({
+  getPolicySource: () => ({
+    name: 'yaml',
+    getHash: () => 'sha256:test-policy-hash',
+    load: async () => ({ tools: {} }),
+  }),
+  getAuditSink: () => ({
+    name: 'jsonl',
+    write: async (entry: Record<string, unknown>) => {
+      // Actually write to disk for tests
+      const { appendFileSync, mkdirSync, existsSync } = await import('node:fs');
+      const { join } = await import('node:path');
+
+      const auditDir = '/tmp/gatekeeper-test-audit';
+      if (!existsSync(auditDir)) {
+        mkdirSync(auditDir, { recursive: true });
+      }
+
+      const today = new Date().toISOString().split('T')[0];
+      const logFile = join(auditDir, `${today}.jsonl`);
+      const line = JSON.stringify(entry) + '\n';
+      appendFileSync(logFile, line, 'utf-8');
+    },
+  }),
+  getApprovalProvider: () => ({
+    name: 'local',
+    requestApproval: async () => true,
+  }),
 }));
 
 // Import after mocking
@@ -37,8 +64,11 @@ describe('audit logger', () => {
     }
   });
 
+  // Helper to wait for async writes
+  const waitForWrite = () => new Promise(resolve => setTimeout(resolve, 50));
+
   describe('writeAuditLog', () => {
-    it('creates audit directory if missing', () => {
+    it('creates audit directory if missing', async () => {
       rmSync(TEST_AUDIT_DIR, { recursive: true });
 
       writeAuditLog({
@@ -51,10 +81,11 @@ describe('audit logger', () => {
         riskFlags: [],
       });
 
+      await waitForWrite();
       expect(existsSync(TEST_AUDIT_DIR)).toBe(true);
     });
 
-    it('writes JSONL format', () => {
+    it('writes JSONL format', async () => {
       const timestamp = new Date().toISOString();
 
       writeAuditLog({
@@ -66,6 +97,8 @@ describe('audit logger', () => {
         argsSummary: '{}',
         riskFlags: [],
       });
+
+      await waitForWrite();
 
       const today = new Date().toISOString().split('T')[0];
       const logFile = join(TEST_AUDIT_DIR, `${today}.jsonl`);
@@ -82,7 +115,7 @@ describe('audit logger', () => {
       expect(entry.decision).toBe('allow');
     });
 
-    it('includes policy hash and version', () => {
+    it('includes policy hash and version', async () => {
       writeAuditLog({
         timestamp: new Date().toISOString(),
         requestId: 'test-123',
@@ -93,6 +126,8 @@ describe('audit logger', () => {
         riskFlags: [],
       });
 
+      await waitForWrite();
+
       const today = new Date().toISOString().split('T')[0];
       const logFile = join(TEST_AUDIT_DIR, `${today}.jsonl`);
       const content = readFileSync(logFile, 'utf-8');
@@ -102,7 +137,7 @@ describe('audit logger', () => {
       expect(entry.gatekeeperVersion).toBe('1.0.0-test');
     });
 
-    it('appends multiple entries', () => {
+    it('appends multiple entries', async () => {
       writeAuditLog({
         timestamp: new Date().toISOString(),
         requestId: 'test-1',
@@ -113,6 +148,8 @@ describe('audit logger', () => {
         riskFlags: [],
       });
 
+      await waitForWrite();
+
       writeAuditLog({
         timestamp: new Date().toISOString(),
         requestId: 'test-2',
@@ -122,6 +159,8 @@ describe('audit logger', () => {
         argsSummary: '{}',
         riskFlags: ['pattern_match'],
       });
+
+      await waitForWrite();
 
       const today = new Date().toISOString().split('T')[0];
       const logFile = join(TEST_AUDIT_DIR, `${today}.jsonl`);
@@ -139,7 +178,7 @@ describe('audit logger', () => {
   });
 
   describe('logToolRequest', () => {
-    it('logs tool request with all fields', () => {
+    it('logs tool request with all fields', async () => {
       logToolRequest({
         requestId: 'req-123',
         tool: 'shell.exec',
@@ -148,6 +187,8 @@ describe('audit logger', () => {
         argsSummary: '{"command":"ls"}',
         riskFlags: ['needs_approval'],
       });
+
+      await waitForWrite();
 
       const today = new Date().toISOString().split('T')[0];
       const logFile = join(TEST_AUDIT_DIR, `${today}.jsonl`);
@@ -165,7 +206,7 @@ describe('audit logger', () => {
   });
 
   describe('logToolExecution', () => {
-    it('logs execution with result', () => {
+    it('logs execution with result', async () => {
       logToolExecution({
         requestId: 'req-456',
         tool: 'http.request',
@@ -174,6 +215,8 @@ describe('audit logger', () => {
         resultSummary: '{"status":200}',
         riskFlags: [],
       });
+
+      await waitForWrite();
 
       const today = new Date().toISOString().split('T')[0];
       const logFile = join(TEST_AUDIT_DIR, `${today}.jsonl`);
@@ -186,7 +229,7 @@ describe('audit logger', () => {
   });
 
   describe('logApprovalConsumed', () => {
-    it('logs approval with action', () => {
+    it('logs approval with action', async () => {
       logApprovalConsumed({
         requestId: 'req-789',
         tool: 'shell.exec',
@@ -196,6 +239,8 @@ describe('audit logger', () => {
         action: 'approved',
         resultSummary: '{"exitCode":0}',
       });
+
+      await waitForWrite();
 
       const today = new Date().toISOString().split('T')[0];
       const logFile = join(TEST_AUDIT_DIR, `${today}.jsonl`);
@@ -207,7 +252,7 @@ describe('audit logger', () => {
       expect(entry.riskFlags).toContain('action:approved');
     });
 
-    it('logs denial action', () => {
+    it('logs denial action', async () => {
       logApprovalConsumed({
         requestId: 'req-999',
         tool: 'shell.exec',
@@ -216,6 +261,8 @@ describe('audit logger', () => {
         approvalId: 'approval-456',
         action: 'denied',
       });
+
+      await waitForWrite();
 
       const today = new Date().toISOString().split('T')[0];
       const logFile = join(TEST_AUDIT_DIR, `${today}.jsonl`);

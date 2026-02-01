@@ -1,31 +1,35 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { config, validateConfig } from './config.js';
-import { loadPolicy, getPolicyHash } from './policy/loadPolicy.js';
 import { evaluateTool } from './policy/evaluate.js';
 import { executeTool, validateToolArgs, toolExists } from './tools/index.js';
 import { ToolRequestSchema } from './tools/schemas.js';
 import { createApproval, countPendingApprovals, cleanupExpiredApprovals } from './approvals/store.js';
-import { sendSlackApprovalNotification } from './approvals/slack.js';
 import { registerApprovalRoutes } from './approvals/routes.js';
 import { logToolRequest, logToolExecution } from './audit/logger.js';
 import { redactSecrets } from './utils.js';
+import { getApprovalProvider, getPolicySource } from './providers/index.js';
 
 const startTime = Date.now();
 
 // Validate config before starting
 validateConfig();
 
+// Get providers
+const policySource = getPolicySource();
+const approvalProvider = getApprovalProvider();
+
 // Load policy at startup
-const policy = loadPolicy(config.policyPath);
-console.log(`Loaded policy from ${config.policyPath}`);
-console.log(`Policy hash: ${getPolicyHash()}`);
+const policy = await policySource.load();
+console.log(`Loaded policy via ${policySource.name} provider`);
+console.log(`Policy hash: ${policySource.getHash()}`);
 console.log(`Available tools: ${Object.keys(policy.tools).join(', ')}`);
+console.log(`Approval provider: ${approvalProvider.name}`);
 
 // Create Fastify instance
 const app = Fastify({
   logger: {
-    level: 'info',
+    level: config.logLevel,
   },
 });
 
@@ -38,9 +42,14 @@ await app.register(cors, {
 app.get('/health', async () => {
   return {
     version: config.version,
-    policyHash: getPolicyHash(),
+    policyHash: policySource.getHash(),
     uptime: Math.floor((Date.now() - startTime) / 1000),
     pendingApprovals: countPendingApprovals(),
+    demoMode: config.demoMode,
+    providers: {
+      approval: approvalProvider.name,
+      policy: policySource.name,
+    },
   };
 });
 
@@ -115,23 +124,28 @@ app.post<{ Params: { toolName: string } }>(
           requestId,
         });
 
-        // Send Slack notification (don't block on failure)
-        sendSlackApprovalNotification({
-          approval,
-          approveUrl,
-          denyUrl,
-        }).catch(err => {
-          console.error('Failed to send Slack notification:', err);
+        // Send notification via approval provider (don't block on failure)
+        approvalProvider.requestApproval(approval, { approveUrl, denyUrl }).catch(err => {
+          console.error('Failed to send approval notification:', err);
         });
 
-        reply.status(202).send({
+        // Build response - include URLs in demo mode for programmatic approval
+        const response: Record<string, unknown> = {
           decision: 'approve',
           reason: evaluation.reason,
           requestId,
           approvalId: approval.id,
           expiresAt: approval.expiresAt,
-          message: 'Approval required. Check Slack for approval links.',
-        });
+          message: `Approval required. Check ${approvalProvider.name} for approval links.`,
+        };
+
+        // DEMO_MODE: Include signed URLs for programmatic testing
+        if (config.demoMode) {
+          response.approveUrl = approveUrl;
+          response.denyUrl = denyUrl;
+        }
+
+        reply.status(202).send(response);
         return;
       }
 

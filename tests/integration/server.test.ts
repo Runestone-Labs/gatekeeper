@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import Fastify, { FastifyInstance } from 'fastify';
-import { mkdirSync, rmSync, existsSync, readFileSync } from 'node:fs';
+import { mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 // Set up test environment
@@ -15,7 +15,7 @@ async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
 
   // Import handlers dynamically to use test config
-  const { loadPolicy, getPolicyHash } = await import('../../src/policy/loadPolicy.js');
+  const { getPolicySource, resetProviders } = await import('../../src/providers/index.js');
   const { evaluateTool } = await import('../../src/policy/evaluate.js');
   const { executeTool, validateToolArgs, toolExists } = await import('../../src/tools/index.js');
   const { ToolRequestSchema } = await import('../../src/tools/schemas.js');
@@ -23,14 +23,17 @@ async function buildApp(): Promise<FastifyInstance> {
   const { registerApprovalRoutes } = await import('../../src/approvals/routes.js');
   const { logToolRequest, logToolExecution } = await import('../../src/audit/logger.js');
   const { redactSecrets } = await import('../../src/utils.js');
-  const { config } = await import('../../src/config.js');
 
-  const policy = loadPolicy(config.policyPath);
+  // Reset providers to ensure fresh state
+  resetProviders();
+
+  const policySource = getPolicySource();
+  const policy = await policySource.load();
 
   // Health endpoint
   app.get('/health', async () => ({
     version: '1.0.0-test',
-    policyHash: getPolicyHash(),
+    policyHash: policySource.getHash(),
     uptime: 0,
     pendingApprovals: 0,
   }));
