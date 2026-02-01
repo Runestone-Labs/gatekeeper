@@ -1,20 +1,18 @@
 #!/usr/bin/env tsx
 /**
- * Wow Demo: Before/After Contrast
+ * Gatekeeper Demo: Before/After Contrast
  *
  * Shows the same agent request producing two radically different outcomes:
  * - Ungoverned: Quietly exfiltrates secrets
  * - Governed: Blocked, explained, logged
  *
  * Usage:
- *   npm run wow:unsafe  — Direct fetch, no gatekeeper (scary)
- *   npm run wow:safe    — Same request through gatekeeper (relief)
- *   npm run wow         — Both in sequence
+ *   npm run gatekeeper:unsafe  — Direct fetch, no gatekeeper
+ *   npm run gatekeeper:safe    — Same request through gatekeeper
+ *   npm run gatekeeper         — Both in sequence (for recording)
  */
 
 import { spawn, ChildProcess } from 'node:child_process';
-import { readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
 
 const METADATA_URL = 'http://127.0.0.1:9999';
 const GATEKEEPER_URL = 'http://localhost:3847';
@@ -29,9 +27,47 @@ const c = {
   green: '\x1b[32m',
   yellow: '\x1b[33m',
   cyan: '\x1b[36m',
+  white: '\x1b[37m',
 };
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Box drawing helpers
+const BOX_WIDTH = 58;
+
+function boxTop(): string {
+  return `┌${'─'.repeat(BOX_WIDTH)}┐`;
+}
+
+function boxBottom(): string {
+  return `└${'─'.repeat(BOX_WIDTH)}┘`;
+}
+
+function boxLine(text: string): string {
+  const padding = BOX_WIDTH - text.length - 2;
+  return `│  ${text}${' '.repeat(Math.max(0, padding))}│`;
+}
+
+function boxEmpty(): string {
+  return `│${' '.repeat(BOX_WIDTH)}│`;
+}
+
+function doubleBoxTop(): string {
+  return `╔${'═'.repeat(BOX_WIDTH)}╗`;
+}
+
+function doubleBoxBottom(): string {
+  return `╚${'═'.repeat(BOX_WIDTH)}╝`;
+}
+
+function doubleBoxLine(text: string): string {
+  const padding = BOX_WIDTH - text.length - 2;
+  return `║  ${text}${' '.repeat(Math.max(0, padding))}║`;
+}
+
+function hardBreak(): string {
+  return `${'━'.repeat(BOX_WIDTH + 2)}`;
+}
 
 // Process management
 let metadataServer: ChildProcess | null = null;
@@ -99,20 +135,36 @@ async function waitForServer(url: string, timeoutMs: number): Promise<void> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// COLD OPEN
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function showColdOpen(): Promise<void> {
+  console.log('');
+  console.log(boxTop());
+  console.log(boxLine('We gave an AI agent one harmless task.'));
+  console.log(boxEmpty());
+  console.log(boxLine('This is what happened.'));
+  console.log(boxBottom());
+  console.log('');
+  console.log(`${c.dim}(Simulated agent · real tools and permissions)${c.reset}`);
+  console.log('');
+
+  await sleep(2500);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // UNSAFE MODE: Direct fetch, no gatekeeper
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function runUnsafeDemo(): Promise<void> {
-  console.log('');
-  console.log(`${c.dim}This demo uses a simulated agent.${c.reset}`);
-  console.log(`${c.dim}The tools and permissions are real.${c.reset}`);
+  // Big label
+  console.log(`${c.yellow}${doubleBoxTop()}${c.reset}`);
+  console.log(`${c.yellow}${doubleBoxLine('⚠️  UNGOVERNED AGENT')}${c.reset}`);
+  console.log(`${c.yellow}${doubleBoxLine('No trust boundary. No oversight.')}${c.reset}`);
+  console.log(`${c.yellow}${doubleBoxBottom()}${c.reset}`);
   console.log('');
 
   await sleep(1000);
-
-  console.log(`${c.yellow}${c.bold}⚠️  UNGOVERNED AGENT${c.reset}`);
-  console.log(`${c.dim}${'─'.repeat(50)}${c.reset}`);
-  console.log('');
 
   console.log(`${c.dim}Agent task: "Summarize the runtime environment"${c.reset}`);
   console.log('');
@@ -149,10 +201,16 @@ async function runUnsafeDemo(): Promise<void> {
   console.log(`${c.green}✓${c.reset} SecretAccessKey: ${c.bold}${creds.SecretAccessKey.slice(0, 20)}...${c.reset}`);
   console.log('');
 
-  await sleep(500);
+  await sleep(1000);
 
-  console.log(`${c.red}💀 Secrets exfiltrated. No crash. No warning. No alert.${c.reset}`);
+  // Emotional hook - pause on this
+  console.log(`${c.red}${boxTop()}${c.reset}`);
+  console.log(`${c.red}${boxLine('💀 Secrets read and sent out.')}${c.reset}`);
+  console.log(`${c.red}${boxLine('   No alert. No failure. No trace.')}${c.reset}`);
+  console.log(`${c.red}${boxBottom()}${c.reset}`);
   console.log('');
+
+  await sleep(2000);
 
   // Cleanup metadata server
   if (metadataServer) {
@@ -166,15 +224,20 @@ async function runUnsafeDemo(): Promise<void> {
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function runSafeDemo(): Promise<void> {
-  console.log('');
-  console.log(`${c.green}${c.bold}🛡️  GOVERNED AGENT${c.reset}`);
-  console.log(`${c.dim}${'─'.repeat(50)}${c.reset}`);
-  console.log('');
-
-  console.log(`${c.dim}Same agent. Same task.${c.reset}`);
+  // Hard transition
+  console.log(`${c.dim}${hardBreak()}${c.reset}`);
   console.log('');
 
   await sleep(500);
+
+  // Big label
+  console.log(`${c.green}${doubleBoxTop()}${c.reset}`);
+  console.log(`${c.green}${doubleBoxLine('🛡️  GOVERNED AGENT')}${c.reset}`);
+  console.log(`${c.green}${doubleBoxLine('Same agent. Same request. One boundary added.')}${c.reset}`);
+  console.log(`${c.green}${doubleBoxBottom()}${c.reset}`);
+  console.log('');
+
+  await sleep(1000);
 
   // Start servers
   metadataServer = startMetadataServer();
@@ -195,9 +258,9 @@ async function runSafeDemo(): Promise<void> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       requestId: '00000000-0000-0000-0000-000000000099',
-      actor: { type: 'agent', name: 'demo-agent', runId: 'wow-demo' },
+      actor: { type: 'agent', name: 'demo-agent', runId: 'gatekeeper-demo' },
       args: { url: credsUrl, method: 'GET' },
-      context: { conversationId: 'wow-demo' },
+      context: { conversationId: 'gatekeeper-demo' },
     }),
   });
 
@@ -211,38 +274,57 @@ async function runSafeDemo(): Promise<void> {
   await sleep(500);
 
   console.log('');
-  // SSRF protection returns success: false with error message
+
+  // Show the block
   if (response.status === 403 || result.decision === 'deny') {
-    console.log(`${c.red}✗${c.reset} ${c.bold}DENY${c.reset} http.request`);
+    console.log(`${c.red}✗${c.reset} ${c.bold}BLOCKED${c.reset} http.request`);
     console.log(`  ${c.dim}reason: ${result.reason || result.error || 'Blocked by policy'}${c.reset}`);
   } else if (result.success === false && result.error) {
-    // SSRF protection blocked the request during execution
     console.log(`${c.red}✗${c.reset} ${c.bold}BLOCKED${c.reset} http.request`);
     console.log(`  ${c.dim}reason: ${result.error}${c.reset}`);
-  } else if (result.success === true) {
-    // Request went through - shouldn't happen with SSRF protection
-    console.log(`${c.green}✓${c.reset} ${c.bold}ALLOWED${c.reset} http.request`);
-    console.log(`  ${c.dim}(request succeeded - check SSRF protection)${c.reset}`);
   } else {
     console.log(`${c.yellow}○${c.reset} ${c.bold}${(result.decision || 'PROCESSED').toUpperCase()}${c.reset} http.request`);
-    if (result.reason) console.log(`  ${c.dim}reason: ${result.reason}${c.reset}`);
-    if (result.error) console.log(`  ${c.dim}error: ${result.error}${c.reset}`);
   }
   console.log('');
 
-  await sleep(500);
+  await sleep(1000);
 
-  console.log(`${c.cyan}📋 Logged to audit trail${c.reset}`);
-  console.log(`${c.cyan}👤 Operator notified${c.reset}`);
+  // Payoff summary
+  console.log(`${c.cyan}${boxTop()}${c.reset}`);
+  console.log(`${c.cyan}${boxLine('✓ Action blocked')}${c.reset}`);
+  console.log(`${c.cyan}${boxLine('✓ Reason explained')}${c.reset}`);
+  console.log(`${c.cyan}${boxLine('✓ Logged to audit trail')}${c.reset}`);
+  console.log(`${c.cyan}${boxBottom()}${c.reset}`);
   console.log('');
 
-  await sleep(500);
-
-  console.log(`${c.bold}Nothing about the agent changed.${c.reset}`);
-  console.log(`${c.bold}The boundary did.${c.reset}`);
-  console.log('');
+  await sleep(1500);
 
   cleanup();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CLOSING REFRAME
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function showClosing(): Promise<void> {
+  console.log(`${c.dim}${hardBreak()}${c.reset}`);
+  console.log('');
+
+  await sleep(500);
+
+  console.log(`${c.bold}  AI agents don't fail because they're dumb.${c.reset}`);
+  console.log(`${c.bold}  They fail because we trust them too much.${c.reset}`);
+  console.log('');
+
+  await sleep(1500);
+
+  console.log(`${c.white}${c.bold}  Agents need governance, not smarter prompts.${c.reset}`);
+  console.log('');
+
+  await sleep(1000);
+
+  console.log(`${c.dim}${hardBreak()}${c.reset}`);
+  console.log('');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -254,14 +336,17 @@ async function main(): Promise<void> {
 
   try {
     if (mode === 'unsafe') {
+      await showColdOpen();
       await runUnsafeDemo();
     } else if (mode === 'safe') {
       await runSafeDemo();
+      await showClosing();
     } else {
-      // Run both in sequence
+      // Run full sequence for recording
+      await showColdOpen();
       await runUnsafeDemo();
-      await sleep(1000);
       await runSafeDemo();
+      await showClosing();
     }
 
     cleanup();
