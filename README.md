@@ -1,0 +1,288 @@
+# Runestone Agent Gatekeeper
+
+A policy-based gatekeeper service that sits between AI agents and real-world tools (shell, HTTP, filesystem), enforcing approvals, denials, and audit logging.
+
+## What Problem This Solves
+
+AI agents need to execute actions in the real world: running shell commands, writing files, making HTTP requests. Without guardrails, an agent can accidentally (or adversarially) execute dangerous operations.
+
+The Gatekeeper intercepts all tool requests and:
+- **Allows** low-risk operations immediately
+- **Denies** operations that match dangerous patterns
+- **Requires human approval** for sensitive operations via Slack
+
+All decisions are logged to an append-only audit trail.
+
+## Threat Model
+
+This gatekeeper protects against:
+
+1. **Accidental damage**: Agent runs `rm -rf /` or overwrites critical files
+2. **Prompt injection execution**: Malicious content tricks agent into dangerous actions
+3. **Exfiltration**: Agent sends secrets to external services
+4. **SSRF attacks**: Agent accesses internal services via HTTP
+
+This gatekeeper does NOT protect against:
+
+- Malicious operator with access to the policy file
+- Attacks on the gatekeeper service itself
+- Social engineering of the human approver
+- Denial of service (no rate limiting)
+
+## Quick Start
+
+### 1. Install Dependencies
+
+```bash
+npm install
+```
+
+### 2. Configure Environment
+
+```bash
+# Required: Secret for HMAC signing (at least 32 characters)
+export GATEKEEPER_SECRET="your-secret-key-at-least-32-chars-long"
+
+# Optional: Slack webhook for approval notifications
+export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/..."
+
+# Optional: Custom port (default: 3847)
+export GATEKEEPER_PORT=3847
+
+# Optional: Base URL for approval links
+export BASE_URL="http://localhost:3847"
+```
+
+### 3. Create Policy File
+
+```bash
+cp policy.example.yaml policy.yaml
+# Edit policy.yaml to match your requirements
+```
+
+### 4. Start the Server
+
+```bash
+npm start
+# Or for development with auto-reload:
+npm run dev
+```
+
+## Example Requests
+
+### Execute a Tool (Allow Decision)
+
+```bash
+curl -X POST http://localhost:3847/tool/http.request \
+  -H "Content-Type: application/json" \
+  -d '{
+    "requestId": "550e8400-e29b-41d4-a716-446655440000",
+    "actor": {
+      "type": "agent",
+      "name": "my-agent",
+      "runId": "run-123"
+    },
+    "args": {
+      "url": "https://api.example.com/data",
+      "method": "GET"
+    }
+  }'
+```
+
+Response (200):
+```json
+{
+  "decision": "allow",
+  "requestId": "550e8400-e29b-41d4-a716-446655440000",
+  "success": true,
+  "result": {
+    "status": 200,
+    "headers": {"content-type": "application/json"},
+    "body": "{...}"
+  }
+}
+```
+
+### Execute a Tool (Approve Decision)
+
+```bash
+curl -X POST http://localhost:3847/tool/shell.exec \
+  -H "Content-Type: application/json" \
+  -d '{
+    "requestId": "550e8400-e29b-41d4-a716-446655440001",
+    "actor": {
+      "type": "agent",
+      "name": "my-agent"
+    },
+    "args": {
+      "command": "ls -la /tmp"
+    }
+  }'
+```
+
+Response (202):
+```json
+{
+  "decision": "approve",
+  "reason": "Requires human approval",
+  "requestId": "550e8400-e29b-41d4-a716-446655440001",
+  "approvalId": "abc123...",
+  "expiresAt": "2026-01-31T13:00:00.000Z",
+  "message": "Approval required. Check Slack for approval links."
+}
+```
+
+### Execute a Tool (Deny Decision)
+
+```bash
+curl -X POST http://localhost:3847/tool/shell.exec \
+  -H "Content-Type: application/json" \
+  -d '{
+    "requestId": "550e8400-e29b-41d4-a716-446655440002",
+    "actor": {
+      "type": "agent",
+      "name": "my-agent"
+    },
+    "args": {
+      "command": "rm -rf /"
+    }
+  }'
+```
+
+Response (403):
+```json
+{
+  "decision": "deny",
+  "reason": "Denied: matches deny pattern \"rm -rf\"",
+  "requestId": "550e8400-e29b-41d4-a716-446655440002"
+}
+```
+
+### Health Check
+
+```bash
+curl http://localhost:3847/health
+```
+
+Response:
+```json
+{
+  "version": "1.0.0",
+  "policyHash": "sha256:abc123...",
+  "uptime": 3600,
+  "pendingApprovals": 2
+}
+```
+
+## Policy Configuration
+
+See `policy.example.yaml` for a complete example.
+
+```yaml
+tools:
+  shell.exec:
+    decision: approve           # allow | approve | deny
+    deny_patterns:
+      - "rm -rf"               # Regex patterns to block
+    allowed_cwd_prefixes:
+      - "/tmp/"                # Allowed working directories
+    max_output_bytes: 1048576
+    max_timeout_ms: 30000
+
+  files.write:
+    decision: approve
+    allowed_paths:
+      - "/tmp/"
+    deny_extensions:
+      - ".env"
+    max_size_bytes: 10485760
+
+  http.request:
+    decision: allow
+    allowed_methods: ["GET", "POST"]
+    deny_domains:
+      - "pastebin.com"
+    deny_ip_ranges:            # SSRF protection
+      - "127.0.0.0/8"
+      - "169.254.0.0/16"
+    max_body_bytes: 1048576
+```
+
+## Approval Flow
+
+1. Agent submits tool request
+2. Gatekeeper evaluates against policy
+3. If `approve`: Creates pending approval, sends Slack notification
+4. Human clicks Approve or Deny link in Slack
+5. If Approved: Tool executes, result returned
+6. All actions logged to audit trail
+
+Approval links are:
+- HMAC-signed (tamper-proof)
+- Single-use (prevents replay)
+- Time-limited (1 hour expiry)
+
+## Audit Logs
+
+All requests are logged to `data/audit/YYYY-MM-DD.jsonl`:
+
+```json
+{
+  "timestamp": "2026-01-31T12:00:00.000Z",
+  "requestId": "550e8400-...",
+  "tool": "shell.exec",
+  "decision": "approve",
+  "actor": {"type": "agent", "name": "my-agent"},
+  "argsSummary": "{\"command\":\"ls -la\"}",
+  "riskFlags": [],
+  "policyHash": "sha256:abc123...",
+  "gatekeeperVersion": "1.0.0"
+}
+```
+
+Logs are:
+- Append-only (never modified)
+- One file per day (easy rotation)
+- Include policy hash (for forensics)
+- Secrets are redacted
+
+## What This Intentionally Does NOT Solve
+
+- **No UI dashboards**: Use the audit logs directly
+- **No database**: File-based storage only
+- **No user authentication**: Relies on signed URLs
+- **No cloud deployment**: Local service only
+- **No LLM code**: This is pure infrastructure
+- **No rate limiting**: Add upstream if needed
+- **No multi-tenancy**: Single policy file
+
+This is an infrastructure safety primitive, not a productized platform.
+
+## Security Decisions
+
+| Feature | Implementation | Rationale |
+|---------|----------------|-----------|
+| Approval signing | HMAC-SHA256 of full payload | Prevents parameter tampering |
+| Single-use approvals | Status field + atomic update | Prevents replay attacks |
+| Expiry | 1 hour default | Limits approval window |
+| Input validation | Zod with `.strict()` | Rejects unknown fields |
+| Shell constraints | cwd allowlist, timeout caps | Limits blast radius |
+| SSRF protection | DNS resolution + IP checks | Blocks internal access |
+| Audit logging | Append-only JSONL | Tamper-evident trail |
+
+## Development
+
+```bash
+# Type check
+npm run typecheck
+
+# Run with auto-reload
+npm run dev
+
+# Run production
+npm start
+```
+
+## License
+
+MIT
