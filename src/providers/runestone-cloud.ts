@@ -1,37 +1,94 @@
 import { ApprovalProvider, AuditSink, PolicySource } from './types.js';
 import { PendingApproval, AuditEntry, Policy } from '../types.js';
+import { config } from '../config.js';
 
 /**
  * Runestone Control Plane - Approval Provider
  *
- * Coming soon: Hosted approval workflows with:
+ * Delegates approval workflows to a Runestone Control Plane instance.
+ * The control plane handles:
  * - Web-based approval UI
  * - Mobile push notifications
  * - Team approval routing
  * - Approval audit history
  *
- * Contact: enterprise@runestone.dev
+ * Configure with:
+ *   RUNESTONE_API_URL=http://localhost:3848
+ *   RUNESTONE_API_KEY=your-api-key (optional for dev)
  */
 export class RunestoneCloudApproval implements ApprovalProvider {
   name = 'runestone';
 
   async requestApproval(
-    _approval: PendingApproval,
-    _urls: { approveUrl: string; denyUrl: string }
+    approval: PendingApproval,
+    urls: { approveUrl: string; denyUrl: string }
   ): Promise<boolean> {
-    // TODO: Connect to Runestone Control Plane API
-    throw new Error(
-      'Runestone Cloud approval provider not yet implemented. ' +
-        'Contact enterprise@runestone.dev for early access.'
-    );
+    if (!config.runestoneApiUrl) {
+      throw new Error(
+        'RUNESTONE_API_URL not configured. ' +
+          'Set RUNESTONE_API_URL to your control plane URL.'
+      );
+    }
+
+    const payload = {
+      id: approval.id,
+      toolName: approval.toolName,
+      args: approval.args,
+      actor: approval.actor,
+      context: approval.context,
+      createdAt: approval.createdAt,
+      expiresAt: approval.expiresAt,
+      callbacks: {
+        approveUrl: urls.approveUrl,
+        denyUrl: urls.denyUrl,
+      },
+    };
+
+    const response = await fetch(`${config.runestoneApiUrl}/approvals`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(config.runestoneApiKey && { 'Authorization': `Bearer ${config.runestoneApiKey}` }),
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Control plane rejected approval request: ${response.status} ${text}`);
+    }
+
+    return true;
   }
 
   async notifyResult(
-    _approval: PendingApproval,
-    _action: 'approved' | 'denied',
-    _result?: string
+    approval: PendingApproval,
+    action: 'approved' | 'denied',
+    result?: string
   ): Promise<void> {
-    // TODO: Connect to Runestone Control Plane API
+    if (!config.runestoneApiUrl) {
+      return; // Silently skip if not configured
+    }
+
+    const payload = {
+      action,
+      result,
+      completedAt: new Date().toISOString(),
+    };
+
+    // Fire and forget - don't fail if notification fails
+    try {
+      await fetch(`${config.runestoneApiUrl}/approvals/${approval.id}/result`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(config.runestoneApiKey && { 'Authorization': `Bearer ${config.runestoneApiKey}` }),
+        },
+        body: JSON.stringify(payload),
+      });
+    } catch {
+      // Notification is best-effort
+    }
   }
 }
 

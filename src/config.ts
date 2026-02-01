@@ -35,6 +35,10 @@ export const config = {
   // Slack
   slackWebhookUrl: process.env.SLACK_WEBHOOK_URL || '',
 
+  // Runestone Cloud
+  runestoneApiUrl: process.env.RUNESTONE_API_URL || '',
+  runestoneApiKey: process.env.RUNESTONE_API_KEY || '',
+
   // Provider selection
   approvalProvider: (process.env.APPROVAL_PROVIDER || 'local') as ApprovalProviderType,
   auditSink: (process.env.AUDIT_SINK || 'jsonl') as AuditSinkType,
