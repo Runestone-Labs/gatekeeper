@@ -9,7 +9,7 @@ AI agents need to execute actions in the real world: running shell commands, wri
 The Gatekeeper intercepts all tool requests and:
 - **Allows** low-risk operations immediately
 - **Denies** operations that match dangerous patterns
-- **Requires human approval** for sensitive operations via Slack
+- **Requires human approval** for sensitive operations
 
 All decisions are logged to an append-only audit trail.
 
@@ -43,7 +43,12 @@ npm install
 # Required: Secret for HMAC signing (at least 32 characters)
 export GATEKEEPER_SECRET="your-secret-key-at-least-32-chars-long"
 
-# Optional: Slack webhook for approval notifications
+# Provider selection (optional)
+export APPROVAL_PROVIDER=local   # local | slack | runestone (default: local)
+export AUDIT_SINK=jsonl          # jsonl | runestone (default: jsonl)
+export POLICY_SOURCE=yaml        # yaml | runestone (default: yaml)
+
+# Optional: Slack webhook for approval notifications (when using slack provider)
 export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/..."
 
 # Optional: Custom port (default: 3847)
@@ -67,6 +72,63 @@ npm start
 # Or for development with auto-reload:
 npm run dev
 ```
+
+## Demo (2 minutes)
+
+See all three decision types in action:
+
+```bash
+# Install dependencies
+npm install
+
+# Set a demo secret (or use your own)
+export GATEKEEPER_SECRET="demo-secret-at-least-32-characters-long"
+
+# Run the demo
+npm run demo
+```
+
+The demo runs through:
+1. **DENY** - Dangerous command (`rm -rf /`) is blocked
+2. **APPROVE** - Safe command (`ls -la`) requires approval, then auto-approved
+3. **ALLOW** - HTTP request executes immediately
+
+### Recording
+
+```bash
+# Record with asciinema (creates demo.cast)
+npm run demo:record
+
+# Playback
+asciinema play demo.cast
+
+# Create GIF/MP4 with VHS (requires: brew install vhs)
+npm run demo:gif
+```
+
+### Outputs
+
+- `demo.cast` - Terminal recording (asciinema format)
+- `demo.gif` - Animated GIF for sharing
+- `demo.mp4` - Video file
+- `data/audit/YYYY-MM-DD.jsonl` - Audit log with all demo actions
+
+## Provider Architecture
+
+The gatekeeper uses a pluggable provider system for flexibility:
+
+### Approval Providers
+- **local** (default): Logs approval URLs to console
+- **slack**: Sends interactive approval requests via Slack webhook
+- **runestone**: Enterprise control plane (coming soon)
+
+### Audit Sinks
+- **jsonl** (default): Writes to daily JSONL files in `data/audit/`
+- **runestone**: Stream to cloud for search and compliance (coming soon)
+
+### Policy Sources
+- **yaml** (default): Load from local YAML file
+- **runestone**: Managed policies with version control (coming soon)
 
 ## Example Requests
 
@@ -128,7 +190,7 @@ Response (202):
   "requestId": "550e8400-e29b-41d4-a716-446655440001",
   "approvalId": "abc123...",
   "expiresAt": "2026-01-31T13:00:00.000Z",
-  "message": "Approval required. Check Slack for approval links."
+  "message": "Approval required. Check local for approval links."
 }
 ```
 
@@ -170,7 +232,11 @@ Response:
   "version": "1.0.0",
   "policyHash": "sha256:abc123...",
   "uptime": 3600,
-  "pendingApprovals": 2
+  "pendingApprovals": 2,
+  "providers": {
+    "approval": "local",
+    "policy": "yaml"
+  }
 }
 ```
 
@@ -212,8 +278,8 @@ tools:
 
 1. Agent submits tool request
 2. Gatekeeper evaluates against policy
-3. If `approve`: Creates pending approval, sends Slack notification
-4. Human clicks Approve or Deny link in Slack
+3. If `approve`: Creates pending approval, sends notification via configured provider
+4. Human clicks Approve or Deny link
 5. If Approved: Tool executes, result returned
 6. All actions logged to audit trail
 
@@ -224,7 +290,7 @@ Approval links are:
 
 ## Audit Logs
 
-All requests are logged to `data/audit/YYYY-MM-DD.jsonl`:
+All requests are logged via the configured audit sink. Default (jsonl) writes to `data/audit/YYYY-MM-DD.jsonl`:
 
 ```json
 {
@@ -246,17 +312,16 @@ Logs are:
 - Include policy hash (for forensics)
 - Secrets are redacted
 
-## What This Intentionally Does NOT Solve
+## Enterprise Control Plane
 
-- **No UI dashboards**: Use the audit logs directly
-- **No database**: File-based storage only
-- **No user authentication**: Relies on signed URLs
-- **No cloud deployment**: Local service only
-- **No LLM code**: This is pure infrastructure
-- **No rate limiting**: Add upstream if needed
-- **No multi-tenancy**: Single policy file
+Coming soon: **Runestone Control Plane** provides:
 
-This is an infrastructure safety primitive, not a productized platform.
+- **Managed Policies**: Version-controlled policy configuration with templates
+- **Searchable Audit**: Full-text search across all audit logs with compliance exports
+- **Web-based Approvals**: Modern approval UI with mobile notifications
+- **Team Workflows**: Approval routing, escalation, and delegation
+
+Contact: enterprise@runestone.dev
 
 ## Security Decisions
 
@@ -268,13 +333,16 @@ This is an infrastructure safety primitive, not a productized platform.
 | Input validation | Zod with `.strict()` | Rejects unknown fields |
 | Shell constraints | cwd allowlist, timeout caps | Limits blast radius |
 | SSRF protection | DNS resolution + IP checks | Blocks internal access |
-| Audit logging | Append-only JSONL | Tamper-evident trail |
+| Audit logging | Append-only via pluggable sink | Tamper-evident trail |
 
 ## Development
 
 ```bash
 # Type check
 npm run typecheck
+
+# Run tests
+npm run test:run
 
 # Run with auto-reload
 npm run dev
