@@ -309,6 +309,8 @@ tools:
     max_body_bytes: 1048576
 ```
 
+For a complete policy writing tutorial, see [docs/POLICY_GUIDE.md](docs/POLICY_GUIDE.md).
+
 ## Approval Flow
 
 1. Agent submits tool request
@@ -322,6 +324,8 @@ Approval links are:
 - HMAC-signed (tamper-proof)
 - Single-use (prevents replay)
 - Time-limited (1 hour expiry)
+
+For a detailed approval workflow guide, see [docs/APPROVALS.md](docs/APPROVALS.md).
 
 ## Audit Logs
 
@@ -346,6 +350,8 @@ Logs are:
 - One file per day (easy rotation)
 - Include policy hash (for forensics)
 - Secrets are redacted
+
+For a complete audit log reference with querying examples, see [docs/AUDIT_LOGS.md](docs/AUDIT_LOGS.md).
 
 ## Using with Real Agents
 
@@ -396,13 +402,21 @@ npm start
 
 ## Documentation
 
+### Guides
+- [docs/POLICY_GUIDE.md](docs/POLICY_GUIDE.md) - How to write and customize policies
+- [docs/APPROVALS.md](docs/APPROVALS.md) - Approval workflow details and troubleshooting
+- [docs/AUDIT_LOGS.md](docs/AUDIT_LOGS.md) - Audit log format and querying
+
+### Reference
+- [THREAT_MODEL.md](THREAT_MODEL.md) - Security assumptions and non-goals
 - [INTEGRATING_AGENTS.md](INTEGRATING_AGENTS.md) - Using Gatekeeper with real agents
-- [SECURITY.md](SECURITY.md) - Security policy and vulnerability reporting
-- [CONTRIBUTING.md](CONTRIBUTING.md) - How to contribute
-- [THREAT_MODEL.md](THREAT_MODEL.md) - Detailed security assumptions
-- [CHANGELOG.md](CHANGELOG.md) - Release history
-- [GOVERNANCE.md](GOVERNANCE.md) - Project governance
 - [RUNESTONE_CLOUD.md](RUNESTONE_CLOUD.md) - OSS vs Cloud architecture
+
+### Contributing
+- [CONTRIBUTING.md](CONTRIBUTING.md) - How to contribute
+- [SECURITY.md](SECURITY.md) - Security policy and vulnerability reporting
+- [GOVERNANCE.md](GOVERNANCE.md) - Project governance
+- [CHANGELOG.md](CHANGELOG.md) - Release history
 
 ## License
 
