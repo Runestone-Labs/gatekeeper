@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-02-03
+
+### Added
+
+- **Docker support** - One-command install with `docker-compose up`
+  - Multi-stage Dockerfile with non-root user
+  - Health checks and volume mounts
+  - Demo mode for easy testing
+- **TypeScript client** - Reusable client library for agent integration
+  - Generic `callTool()` method for any tool
+  - Typed helpers for `shellExec()`, `filesWrite()`, `httpRequest()`
+  - Health check and configuration options
+- **OpenClaw integration** - Skill package for OpenClaw AI assistant
+  - `gk_exec`, `gk_write`, `gk_http` tool wrappers
+  - SKILL.md manifest for skill discovery
+- **Live integration tests** - End-to-end validation against running Gatekeeper
+  - Tests all decision types (allow, approve, deny)
+  - Verifies SSRF protection at execution time
+- **Documentation guides**
+  - `docs/POLICY_GUIDE.md` - Policy writing tutorial with recipes
+  - `docs/APPROVALS.md` - Approval workflow and troubleshooting
+  - `docs/AUDIT_LOGS.md` - Audit log reference and querying
+
+### Changed
+
+- README reorganized with better documentation navigation
+- ESLint and Prettier configured for consistent code style
+
 ## [0.1.0] - 2026-01-31
 
 Initial public release.
@@ -50,5 +78,6 @@ Initial public release.
 - SSRF protection blocks access to private IP ranges
 - Secrets are redacted from audit logs
 
-[Unreleased]: https://github.com/Runestone-Labs/gatekeeper/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Runestone-Labs/gatekeeper/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Runestone-Labs/gatekeeper/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Runestone-Labs/gatekeeper/releases/tag/v0.1.0
