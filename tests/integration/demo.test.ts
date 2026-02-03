@@ -62,20 +62,23 @@ describe.skip('demo script integration', () => {
 
     const auditDir = join(TEST_DATA_DIR, 'audit');
     const files = existsSync(auditDir) ? readdirSync(auditDir) : [];
-    const jsonlFiles = files.filter(f => f.endsWith('.jsonl'));
+    const jsonlFiles = files.filter((f) => f.endsWith('.jsonl'));
 
     expect(jsonlFiles.length).toBeGreaterThan(0);
 
     // Read the latest audit file and verify entries
     const latestFile = jsonlFiles.sort().pop()!;
     const content = readFileSync(join(auditDir, latestFile), 'utf-8');
-    const lines = content.trim().split('\n').filter(l => l.length > 0);
+    const lines = content
+      .trim()
+      .split('\n')
+      .filter((l) => l.length > 0);
 
     // Should have at least 3 entries (deny, approve flow, allow)
     expect(lines.length).toBeGreaterThanOrEqual(3);
 
     // Verify at least one deny entry
-    const hasDeny = lines.some(line => {
+    const hasDeny = lines.some((line) => {
       const entry = JSON.parse(line);
       return entry.decision === 'deny';
     });

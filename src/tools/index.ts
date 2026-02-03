@@ -1,5 +1,5 @@
 import { ToolResult, ToolPolicy } from '../types.js';
-import { getToolSchema, ShellExecArgs, FilesWriteArgs, HttpRequestArgs } from './schemas.js';
+import { getToolSchema } from './schemas.js';
 import { executeShellExec } from './shellExec.js';
 import { executeFilesWrite } from './filesWrite.js';
 import { executeHttpRequest } from './httpRequest.js';
@@ -54,7 +54,7 @@ export function validateToolArgs(
   const result = schema.safeParse(args);
 
   if (!result.success) {
-    const errors = result.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+    const errors = result.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join(', ');
     return { success: false, error: `Invalid arguments: ${errors}` };
   }
 

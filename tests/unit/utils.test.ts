@@ -22,7 +22,12 @@ describe('canonicalize', () => {
   });
 
   it('preserves array order but sorts nested objects', () => {
-    const obj = { arr: [{ b: 1, a: 2 }, { d: 3, c: 4 }] };
+    const obj = {
+      arr: [
+        { b: 1, a: 2 },
+        { d: 3, c: 4 },
+      ],
+    };
     expect(canonicalize(obj)).toBe('{"arr":[{"a":2,"b":1},{"c":4,"d":3}]}');
   });
 

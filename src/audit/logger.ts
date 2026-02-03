@@ -18,7 +18,7 @@ export function writeAuditLog(entry: Omit<AuditEntry, 'policyHash' | 'gatekeeper
   };
 
   // Write via the audit sink (async but fire-and-forget)
-  auditSink.write(fullEntry).catch(err => {
+  auditSink.write(fullEntry).catch((err) => {
     console.error('Failed to write audit log:', err);
     console.error('Entry:', fullEntry);
   });

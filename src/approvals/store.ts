@@ -1,7 +1,7 @@
-import { readFileSync, writeFileSync, readdirSync, unlinkSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { config } from '../config.js';
-import { PendingApproval, ApprovalStatus, Actor, RequestContext } from '../types.js';
+import { PendingApproval, Actor, RequestContext } from '../types.js';
 import { generateId, canonicalize, computeHmac } from '../utils.js';
 
 // In-memory cache of pending approvals

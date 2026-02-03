@@ -25,8 +25,7 @@ export class RunestoneCloudApproval implements ApprovalProvider {
   ): Promise<boolean> {
     if (!config.runestoneApiUrl) {
       throw new Error(
-        'RUNESTONE_API_URL not configured. ' +
-          'Set RUNESTONE_API_URL to your control plane URL.'
+        'RUNESTONE_API_URL not configured. ' + 'Set RUNESTONE_API_URL to your control plane URL.'
       );
     }
 
@@ -48,7 +47,7 @@ export class RunestoneCloudApproval implements ApprovalProvider {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(config.runestoneApiKey && { 'Authorization': `Bearer ${config.runestoneApiKey}` }),
+        ...(config.runestoneApiKey && { Authorization: `Bearer ${config.runestoneApiKey}` }),
       },
       body: JSON.stringify(payload),
     });
@@ -82,7 +81,7 @@ export class RunestoneCloudApproval implements ApprovalProvider {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(config.runestoneApiKey && { 'Authorization': `Bearer ${config.runestoneApiKey}` }),
+          ...(config.runestoneApiKey && { Authorization: `Bearer ${config.runestoneApiKey}` }),
         },
         body: JSON.stringify(payload),
       });

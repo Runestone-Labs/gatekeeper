@@ -11,12 +11,19 @@ export interface ApprovalProvider {
    * Send an approval request notification.
    * Returns the URLs that the approver can use to approve/deny.
    */
-  requestApproval(approval: PendingApproval, urls: { approveUrl: string; denyUrl: string }): Promise<boolean>;
+  requestApproval(
+    approval: PendingApproval,
+    urls: { approveUrl: string; denyUrl: string }
+  ): Promise<boolean>;
 
   /**
    * Optionally notify about the result of an approval action.
    */
-  notifyResult?(approval: PendingApproval, action: 'approved' | 'denied', result?: string): Promise<void>;
+  notifyResult?(
+    approval: PendingApproval,
+    action: 'approved' | 'denied',
+    result?: string
+  ): Promise<void>;
 }
 
 /**

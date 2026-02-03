@@ -14,7 +14,7 @@ export function canonicalize(obj: unknown): string {
   }
 
   const sortedKeys = Object.keys(obj as Record<string, unknown>).sort();
-  const pairs = sortedKeys.map(key => {
+  const pairs = sortedKeys.map((key) => {
     const value = (obj as Record<string, unknown>)[key];
     return JSON.stringify(key) + ':' + canonicalize(value);
   });
@@ -59,7 +59,7 @@ export function redactSecrets(obj: unknown, maxLength = 200): string {
   ];
 
   function redact(value: unknown, key?: string): unknown {
-    if (key && sensitivePatterns.some(p => p.test(key))) {
+    if (key && sensitivePatterns.some((p) => p.test(key))) {
       return '[REDACTED]';
     }
 
@@ -76,7 +76,7 @@ export function redactSecrets(obj: unknown, maxLength = 200): string {
     }
 
     if (Array.isArray(value)) {
-      return value.slice(0, 10).map(v => redact(v));
+      return value.slice(0, 10).map((v) => redact(v));
     }
 
     if (value !== null && typeof value === 'object') {
@@ -108,12 +108,12 @@ export function truncate(str: string, maxLength: number): string {
 export function isPrivateIP(ip: string): boolean {
   // Parse IP into parts
   const parts = ip.split('.').map(Number);
-  if (parts.length !== 4 || parts.some(p => isNaN(p) || p < 0 || p > 255)) {
+  if (parts.length !== 4 || parts.some((p) => isNaN(p) || p < 0 || p > 255)) {
     // Not a valid IPv4, treat as potentially dangerous
     return true;
   }
 
-  const [a, b, c] = parts;
+  const [a, b] = parts;
 
   // 127.0.0.0/8 - Loopback
   if (a === 127) return true;
@@ -154,7 +154,7 @@ export function ipInCIDR(ip: string, cidr: string): boolean {
 
 function ipToNumber(ip: string): number | null {
   const parts = ip.split('.').map(Number);
-  if (parts.length !== 4 || parts.some(p => isNaN(p) || p < 0 || p > 255)) {
+  if (parts.length !== 4 || parts.some((p) => isNaN(p) || p < 0 || p > 255)) {
     return null;
   }
   return (parts[0] << 24) + (parts[1] << 16) + (parts[2] << 8) + parts[3];

@@ -46,9 +46,8 @@ export function evaluateTool(
   // Return the configured decision
   return {
     decision: toolPolicy.decision,
-    reason: toolPolicy.decision === 'approve'
-      ? 'Requires human approval'
-      : `Policy allows ${toolName}`,
+    reason:
+      toolPolicy.decision === 'approve' ? 'Requires human approval' : `Policy allows ${toolName}`,
     riskFlags: [],
   };
 }
@@ -62,10 +61,7 @@ interface Violation {
  * Check args against deny patterns.
  * SECURITY: Regex patterns are evaluated against the full canonicalized args.
  */
-function checkDenyPatterns(
-  args: Record<string, unknown>,
-  policy: ToolPolicy
-): Violation | null {
+function checkDenyPatterns(args: Record<string, unknown>, policy: ToolPolicy): Violation | null {
   if (!policy.deny_patterns || policy.deny_patterns.length === 0) {
     return null;
   }
@@ -111,17 +107,12 @@ function validateToolArgs(
   }
 }
 
-function validateShellExec(
-  args: Record<string, unknown>,
-  policy: ToolPolicy
-): Violation | null {
+function validateShellExec(args: Record<string, unknown>, policy: ToolPolicy): Violation | null {
   const cwd = args.cwd as string | undefined;
 
   // Validate cwd against allowed prefixes
   if (cwd && policy.allowed_cwd_prefixes && policy.allowed_cwd_prefixes.length > 0) {
-    const allowed = policy.allowed_cwd_prefixes.some(prefix =>
-      cwd.startsWith(prefix)
-    );
+    const allowed = policy.allowed_cwd_prefixes.some((prefix) => cwd.startsWith(prefix));
     if (!allowed) {
       return {
         reason: `Denied: cwd "${cwd}" not in allowed prefixes`,
@@ -144,10 +135,7 @@ function validateShellExec(
   return null;
 }
 
-function validateFilesWrite(
-  args: Record<string, unknown>,
-  policy: ToolPolicy
-): Violation | null {
+function validateFilesWrite(args: Record<string, unknown>, policy: ToolPolicy): Violation | null {
   const path = args.path as string | undefined;
   const content = args.content as string | undefined;
 
@@ -160,9 +148,7 @@ function validateFilesWrite(
 
   // Validate path against allowed paths
   if (policy.allowed_paths && policy.allowed_paths.length > 0) {
-    const allowed = policy.allowed_paths.some(prefix =>
-      path.startsWith(prefix)
-    );
+    const allowed = policy.allowed_paths.some((prefix) => path.startsWith(prefix));
     if (!allowed) {
       return {
         reason: `Denied: path "${path}" not in allowed paths`,
@@ -196,10 +182,7 @@ function validateFilesWrite(
   return null;
 }
 
-function validateHttpRequest(
-  args: Record<string, unknown>,
-  policy: ToolPolicy
-): Violation | null {
+function validateHttpRequest(args: Record<string, unknown>, policy: ToolPolicy): Violation | null {
   const url = args.url as string | undefined;
   const method = args.method as string | undefined;
 

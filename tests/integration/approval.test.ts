@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -57,7 +57,7 @@ describe('approval flow integration', () => {
   describe('full approval workflow', () => {
     it('creates approval and verifies with correct signature', () => {
       // Step 1: Create approval
-      const { approval, approveUrl, denyUrl } = createApproval({
+      const { approval, approveUrl } = createApproval({
         toolName: 'shell.exec',
         args: { command: 'ls -la /tmp' },
         actor: { type: 'agent', name: 'test-agent' },
@@ -174,14 +174,14 @@ describe('approval flow integration', () => {
 
     it('signature includes canonical args (order-independent)', () => {
       // Create two approvals with same args in different order
-      const { approval: approval1, approveUrl: url1 } = createApproval({
+      const { approval: approval1 } = createApproval({
         toolName: 'shell.exec',
         args: { cwd: '/tmp', command: 'ls' },
         actor: { type: 'agent', name: 'test-agent' },
         requestId: '550e8400-e29b-41d4-a716-446655440006',
       });
 
-      const { approval: approval2, approveUrl: url2 } = createApproval({
+      const { approval: approval2 } = createApproval({
         toolName: 'shell.exec',
         args: { command: 'ls', cwd: '/tmp' },
         actor: { type: 'agent', name: 'test-agent' },

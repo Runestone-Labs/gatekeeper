@@ -1,0 +1,29 @@
+{
+  "name": "@runestone/gatekeeper-client",
+  "version": "0.1.0",
+  "description": "TypeScript client for Runestone Gatekeeper",
+  "type": "module",
+  "main": "index.ts",
+  "types": "index.ts",
+  "exports": {
+    ".": {
+      "import": "./index.ts",
+      "types": "./index.ts"
+    }
+  },
+  "keywords": [
+    "runestone",
+    "gatekeeper",
+    "ai",
+    "agent",
+    "security",
+    "policy"
+  ],
+  "author": "Runestone Labs",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Runestone-Labs/gatekeeper.git",
+    "directory": "integrations/typescript-client"
+  }
+}

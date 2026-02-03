@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdirSync, rmSync, existsSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
 
 // Mock config before importing store
 vi.mock('../../src/config.js', () => ({
@@ -13,7 +12,8 @@ vi.mock('../../src/config.js', () => ({
 }));
 
 // Import after mocking
-const { createApproval, verifyAndConsumeApproval, countPendingApprovals } = await import('../../src/approvals/store.js');
+const { createApproval, verifyAndConsumeApproval, countPendingApprovals } =
+  await import('../../src/approvals/store.js');
 
 const TEST_DIR = '/tmp/gatekeeper-test-approvals';
 

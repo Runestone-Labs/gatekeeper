@@ -48,7 +48,8 @@ vi.mock('../../src/providers/index.js', () => ({
 }));
 
 // Import after mocking
-const { writeAuditLog, logToolRequest, logToolExecution, logApprovalConsumed } = await import('../../src/audit/logger.js');
+const { writeAuditLog, logToolRequest, logToolExecution, logApprovalConsumed } =
+  await import('../../src/audit/logger.js');
 
 describe('audit logger', () => {
   beforeEach(() => {
@@ -65,7 +66,7 @@ describe('audit logger', () => {
   });
 
   // Helper to wait for async writes
-  const waitForWrite = () => new Promise(resolve => setTimeout(resolve, 50));
+  const waitForWrite = () => new Promise((resolve) => setTimeout(resolve, 50));
 
   describe('writeAuditLog', () => {
     it('creates audit directory if missing', async () => {

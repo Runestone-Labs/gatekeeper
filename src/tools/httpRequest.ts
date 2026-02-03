@@ -68,7 +68,7 @@ export async function executeHttpRequest(
           }
         }
       }
-    } catch (dnsErr) {
+    } catch (_dnsErr) {
       // If DNS fails, allow the request to proceed (might be a direct IP)
       // But check if it's a private IP first
       if (isPrivateIP(hostname)) {
@@ -118,7 +118,9 @@ export async function executeHttpRequest(
         totalBytes += value.length;
         if (totalBytes > maxBodyBytes) {
           truncated = true;
-          body += new TextDecoder().decode(value.slice(0, maxBodyBytes - (totalBytes - value.length)));
+          body += new TextDecoder().decode(
+            value.slice(0, maxBodyBytes - (totalBytes - value.length))
+          );
           reader.cancel();
           break;
         }

@@ -78,7 +78,7 @@ async function buildApp(): Promise<FastifyInstance> {
           requestId,
         });
 
-      case 'approve':
+      case 'approve': {
         const { approval } = createApproval({
           toolName,
           args,
@@ -92,8 +92,9 @@ async function buildApp(): Promise<FastifyInstance> {
           approvalId: approval.id,
           expiresAt: approval.expiresAt,
         });
+      }
 
-      case 'allow':
+      case 'allow': {
         const toolPolicy = policy.tools[toolName];
         const result = await executeTool(toolName, args, toolPolicy);
 
@@ -113,6 +114,7 @@ async function buildApp(): Promise<FastifyInstance> {
           result: result.output,
           error: result.error,
         });
+      }
     }
   });
 

@@ -4,7 +4,11 @@ import { LocalApprovalProvider } from './local-approval.js';
 import { SlackApprovalProvider } from './slack-approval.js';
 import { JsonlAuditSink } from './jsonl-audit.js';
 import { YamlPolicySource } from './yaml-policy.js';
-import { RunestoneCloudApproval, RunestoneCloudAudit, RunestoneCloudPolicy } from './runestone-cloud.js';
+import {
+  RunestoneCloudApproval,
+  RunestoneCloudAudit,
+  RunestoneCloudPolicy,
+} from './runestone-cloud.js';
 
 // Re-export types
 export type { ApprovalProvider, AuditSink, PolicySource } from './types.js';

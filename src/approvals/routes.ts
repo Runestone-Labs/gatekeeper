@@ -2,7 +2,6 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { verifyAndConsumeApproval } from './store.js';
 import { executeTool } from '../tools/index.js';
 import { logApprovalConsumed, logToolExecution } from '../audit/logger.js';
-import { config } from '../config.js';
 import { redactSecrets } from '../utils.js';
 import { getApprovalProvider, getPolicySource } from '../providers/index.js';
 
@@ -22,7 +21,10 @@ export function registerApprovalRoutes(app: FastifyInstance): void {
   // GET /approve/:id
   app.get<{ Params: ApprovalParams; Querystring: ApprovalQuery }>(
     '/approve/:id',
-    async (request: FastifyRequest<{ Params: ApprovalParams; Querystring: ApprovalQuery }>, reply: FastifyReply) => {
+    async (
+      request: FastifyRequest<{ Params: ApprovalParams; Querystring: ApprovalQuery }>,
+      reply: FastifyReply
+    ) => {
       return handleApprovalAction(request, reply, 'approve');
     }
   );
@@ -30,7 +32,10 @@ export function registerApprovalRoutes(app: FastifyInstance): void {
   // GET /deny/:id
   app.get<{ Params: ApprovalParams; Querystring: ApprovalQuery }>(
     '/deny/:id',
-    async (request: FastifyRequest<{ Params: ApprovalParams; Querystring: ApprovalQuery }>, reply: FastifyReply) => {
+    async (
+      request: FastifyRequest<{ Params: ApprovalParams; Querystring: ApprovalQuery }>,
+      reply: FastifyReply
+    ) => {
       return handleApprovalAction(request, reply, 'deny');
     }
   );
@@ -56,10 +61,14 @@ async function handleApprovalAction(
 
   if (!approval) {
     // Determine appropriate status code
-    const statusCode = error === 'Approval not found' ? 404
-      : error === 'Approval has expired' ? 410
-      : error?.includes('already') ? 409
-      : 403;
+    const statusCode =
+      error === 'Approval not found'
+        ? 404
+        : error === 'Approval has expired'
+          ? 410
+          : error?.includes('already')
+            ? 409
+            : 403;
 
     reply.status(statusCode).send({ error });
     return;

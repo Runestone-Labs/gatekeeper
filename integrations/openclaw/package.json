@@ -1,0 +1,26 @@
+{
+  "name": "@runestone/gatekeeper-openclaw",
+  "version": "0.1.0",
+  "description": "OpenClaw skill for Runestone Gatekeeper integration",
+  "type": "module",
+  "main": "tools.ts",
+  "keywords": [
+    "runestone",
+    "gatekeeper",
+    "openclaw",
+    "ai",
+    "agent",
+    "security",
+    "skill"
+  ],
+  "author": "Runestone Labs",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Runestone-Labs/gatekeeper.git",
+    "directory": "integrations/openclaw"
+  },
+  "dependencies": {
+    "@runestone/gatekeeper-client": "file:../typescript-client"
+  }
+}

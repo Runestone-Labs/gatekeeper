@@ -159,7 +159,12 @@ export async function sendSlackActionNotification(params: {
   };
 
   if (result) {
-    (message.attachments[0].blocks as Array<{ type: string; text?: { type: string; text: string } }>).push({
+    (
+      message.attachments[0].blocks as Array<{
+        type: string;
+        text?: { type: string; text: string };
+      }>
+    ).push({
       type: 'section',
       text: {
         type: 'mrkdwn',

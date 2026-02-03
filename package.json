@@ -31,6 +31,10 @@
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint src/ integrations/ tests/",
+    "lint:fix": "eslint src/ integrations/ tests/ --fix",
+    "format": "prettier --write \"src/**/*.ts\" \"integrations/**/*.ts\" \"tests/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"integrations/**/*.ts\" \"tests/**/*.ts\"",
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
@@ -51,13 +55,17 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.2",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.10.7",
     "@types/supertest": "^6.0.3",
     "@vitest/coverage-v8": "^4.0.18",
+    "eslint": "^9.39.2",
+    "prettier": "^3.8.1",
     "supertest": "^7.2.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
+    "typescript-eslint": "^8.54.0",
     "vitest": "^4.0.18"
   }
 }
