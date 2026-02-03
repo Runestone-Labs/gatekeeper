@@ -32,7 +32,39 @@ This gatekeeper does NOT protect against:
 - Social engineering of the human approver
 - Denial of service (no rate limiting)
 
-## Quick Start
+## Quick Start with Docker
+
+The fastest way to try Gatekeeper:
+
+```bash
+git clone https://github.com/Runestone-Labs/gatekeeper.git
+cd gatekeeper
+docker-compose up
+```
+
+Gatekeeper is now running at http://localhost:3847 with demo mode enabled.
+
+Test it:
+```bash
+# This will be DENIED (dangerous pattern)
+curl -X POST http://localhost:3847/tool/shell.exec \
+  -H "Content-Type: application/json" \
+  -d '{"requestId":"550e8400-e29b-41d4-a716-446655440001","actor":{"type":"agent","name":"test"},"args":{"command":"rm -rf /"}}'
+
+# This will be ALLOWED
+curl -X POST http://localhost:3847/tool/http.request \
+  -H "Content-Type: application/json" \
+  -d '{"requestId":"550e8400-e29b-41d4-a716-446655440002","actor":{"type":"agent","name":"test"},"args":{"url":"https://httpbin.org/get","method":"GET"}}'
+```
+
+To customize policy, edit `policy.yaml` and restart:
+```bash
+docker-compose restart
+```
+
+For manual installation without Docker, see below.
+
+## Quick Start (Manual)
 
 ### 1. Install Dependencies
 

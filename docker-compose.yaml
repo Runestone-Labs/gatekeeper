@@ -1,0 +1,20 @@
+services:
+  gatekeeper:
+    build: .
+    ports:
+      - "3847:3847"
+    environment:
+      - GATEKEEPER_SECRET=${GATEKEEPER_SECRET:-default-dev-secret-change-in-prod}
+      - DEMO_MODE=true
+      - LOG_LEVEL=info
+    volumes:
+      - ./policy.yaml:/app/policy.yaml:ro
+      - gatekeeper-data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3847/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  gatekeeper-data:
