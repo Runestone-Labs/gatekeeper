@@ -1,6 +1,6 @@
 import { readFileSync, watchFile, unwatchFile } from 'node:fs';
 import yaml from 'js-yaml';
-import { Policy, ToolPolicy } from '../types.js';
+import { Policy, ToolPolicy, PrincipalPolicy } from '../types.js';
 import { computeHash } from '../utils.js';
 import { PolicySource } from './types.js';
 
@@ -26,13 +26,16 @@ export class YamlPolicySource implements PolicySource {
     }
 
     const content = readFileSync(this.policyPath, 'utf-8');
-    const raw = yaml.load(content) as { tools?: Record<string, unknown> };
+    const raw = yaml.load(content) as {
+      tools?: Record<string, unknown>;
+      principals?: Record<string, unknown>;
+    };
 
     if (!raw || typeof raw !== 'object' || !raw.tools) {
       throw new Error('Invalid policy file: missing "tools" section');
     }
 
-    // Validate and normalize policy
+    // Validate and normalize tool policies
     const tools: Record<string, ToolPolicy> = {};
 
     for (const [toolName, toolConfig] of Object.entries(raw.tools)) {
@@ -63,7 +66,26 @@ export class YamlPolicySource implements PolicySource {
       };
     }
 
-    this.cachedPolicy = { tools };
+    // v1: Parse principal policies
+    let principals: Record<string, PrincipalPolicy> | undefined;
+    if (raw.principals && typeof raw.principals === 'object') {
+      principals = {};
+      for (const [principalName, principalConfig] of Object.entries(raw.principals)) {
+        if (!principalConfig || typeof principalConfig !== 'object') {
+          throw new Error(`Invalid policy for principal: ${principalName}`);
+        }
+
+        const config = principalConfig as Record<string, unknown>;
+        principals[principalName] = {
+          allowedTools: normalizeStringArray(config.allowedTools) || [],
+          denyPatterns: normalizeStringArray(config.denyPatterns),
+          requireApproval: normalizeStringArray(config.requireApproval),
+          alertBudget: config.alertBudget as PrincipalPolicy['alertBudget'],
+        };
+      }
+    }
+
+    this.cachedPolicy = { tools, principals };
     this.cachedPolicyHash = 'sha256:' + computeHash(content);
 
     return this.cachedPolicy;
