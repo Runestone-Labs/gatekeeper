@@ -1,15 +1,15 @@
 {
-  "name": "@runestone/gatekeeper-openclaw",
-  "version": "0.2.0",
-  "description": "OpenClaw tool plugin for Runestone Gatekeeper - policy enforcement for AI agent tools",
+  "name": "gatekeeper",
+  "version": "0.3.0",
+  "description": "OpenClaw plugin for Runestone Gatekeeper - policy enforcement for AI agent tools",
   "type": "module",
   "main": "tools.ts",
   "openclaw": {
-    "extensions": "tools.ts"
+    "extensions": ["./tools.ts"]
   },
   "files": [
     "tools.ts",
-    "SKILL.md",
+    "openclaw.plugin.json",
     "README.md",
     "LICENSE"
   ],
@@ -26,7 +26,6 @@
     "policy",
     "approval",
     "audit",
-    "skill",
     "plugin"
   ],
   "author": "Runestone Labs",
@@ -39,10 +38,6 @@
     "type": "git",
     "url": "https://github.com/Runestone-Labs/gatekeeper.git",
     "directory": "integrations/openclaw"
-  },
-  "dependencies": {
-    "@runestone/gatekeeper-client": "^0.2.0",
-    "@sinclair/typebox": "^0.32.0"
   },
   "peerDependencies": {
     "openclaw": ">=2026.1.0"

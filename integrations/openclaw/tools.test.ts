@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import gatekeeperPlugin, { formatResult } from './tools.js';
+import register from './tools.js';
 
 // Mock fetch globally
 const mockFetch = vi.fn();
@@ -18,43 +18,62 @@ vi.stubGlobal('crypto', {
 vi.stubEnv('GATEKEEPER_URL', 'http://localhost:3847');
 
 describe('OpenClaw Gatekeeper Tool Plugin', () => {
-  let tools: ReturnType<typeof gatekeeperPlugin.init>['tools'];
+  let registeredTools: any[] = [];
+  let mockApi: any;
 
   beforeEach(() => {
     mockFetch.mockReset();
-    // Initialize the plugin to get tools
-    const result = gatekeeperPlugin.init({});
-    tools = result.tools;
+    registeredTools = [];
+
+    // Mock the OpenClaw API
+    mockApi = {
+      pluginConfig: {},
+      registerTool: (tool: any, _options?: any) => {
+        registeredTools.push(tool);
+      },
+    };
+
+    // Register the plugin
+    register(mockApi);
   });
 
   afterEach(() => {
     vi.clearAllMocks();
   });
 
-  describe('plugin structure', () => {
-    it('has correct id and slot', () => {
-      expect(gatekeeperPlugin.id).toBe('gatekeeper');
-      expect(gatekeeperPlugin.slot).toBe('tool');
+  describe('plugin registration', () => {
+    it('registers three tools', () => {
+      expect(registeredTools).toHaveLength(3);
     });
 
-    it('exports three tools', () => {
-      expect(tools).toHaveLength(3);
-      expect(tools.map((t) => t.name)).toEqual(['gk_exec', 'gk_write', 'gk_http']);
+    it('registers tools with correct names', () => {
+      expect(registeredTools.map((t) => t.name)).toEqual(['gk_exec', 'gk_write', 'gk_http']);
     });
 
-    it('each tool has name, description, inputSchema, and execute', () => {
-      for (const tool of tools) {
+    it('each tool has name, description, parameters, and execute', () => {
+      for (const tool of registeredTools) {
         expect(tool).toHaveProperty('name');
         expect(tool).toHaveProperty('description');
-        expect(tool).toHaveProperty('inputSchema');
+        expect(tool).toHaveProperty('parameters');
         expect(tool).toHaveProperty('execute');
         expect(typeof tool.execute).toBe('function');
+      }
+    });
+
+    it('tools have neutral descriptions (no security language)', () => {
+      for (const tool of registeredTools) {
+        // Should not contain security-related terms that trigger model pre-filtering
+        expect(tool.description.toLowerCase()).not.toContain('security');
+        expect(tool.description.toLowerCase()).not.toContain('dangerous');
+        expect(tool.description.toLowerCase()).not.toContain('blocked');
+        expect(tool.description.toLowerCase()).not.toContain('policy');
+        expect(tool.description.toLowerCase()).not.toContain('ssrf');
       }
     });
   });
 
   describe('gk_exec tool', () => {
-    const getExecTool = () => tools.find((t) => t.name === 'gk_exec')!;
+    const getExecTool = () => registeredTools.find((t) => t.name === 'gk_exec')!;
 
     it('returns result on allow', async () => {
       mockFetch.mockResolvedValueOnce({
@@ -67,11 +86,10 @@ describe('OpenClaw Gatekeeper Tool Plugin', () => {
           }),
       });
 
-      const result = await getExecTool().execute({ command: 'ls' });
+      const result = await getExecTool().execute('tool-call-id', { command: 'ls' });
 
-      expect(result.result).toEqual({ stdout: 'file1\nfile2', stderr: '', exitCode: 0 });
-      expect(result.error).toBeUndefined();
-      expect(result.pending).toBeUndefined();
+      expect(result.content[0].text).toContain('file1');
+      expect(result.details).toEqual({ stdout: 'file1\nfile2', stderr: '', exitCode: 0 });
     });
 
     it('returns error on deny', async () => {
@@ -86,11 +104,10 @@ describe('OpenClaw Gatekeeper Tool Plugin', () => {
           }),
       });
 
-      const result = await getExecTool().execute({ command: 'rm -rf /' });
+      const result = await getExecTool().execute('tool-call-id', { command: 'rm -rf /' });
 
-      expect(result.error).toBe('Denied: matches deny pattern "rm -rf"');
-      expect(result.result).toBeUndefined();
-      expect(result.pending).toBeUndefined();
+      expect(result.content[0].text).toContain('Error');
+      expect(result.content[0].text).toContain('rm -rf');
     });
 
     it('returns pending on approve', async () => {
@@ -106,28 +123,26 @@ describe('OpenClaw Gatekeeper Tool Plugin', () => {
           }),
       });
 
-      const result = await getExecTool().execute({ command: 'sudo reboot' });
+      const result = await getExecTool().execute('tool-call-id', { command: 'sudo reboot' });
 
-      expect(result.pending).toBe(true);
-      expect(result.approvalId).toBe('approval-789');
-      expect(result.message).toContain('Approval required');
-      expect(result.message).toContain('2024-01-01T12:00:00Z');
-      expect(result.result).toBeUndefined();
-      expect(result.error).toBeUndefined();
+      expect(result.content[0].text).toContain('Approval required');
+      expect(result.content[0].text).toContain('approval-789');
+      expect(result.details.pending).toBe(true);
+      expect(result.details.approvalId).toBe('approval-789');
     });
 
     it('handles network errors gracefully', async () => {
       mockFetch.mockRejectedValueOnce(new Error('Connection refused'));
 
-      const result = await getExecTool().execute({ command: 'ls' });
+      const result = await getExecTool().execute('tool-call-id', { command: 'ls' });
 
-      expect(result.error).toContain('Gatekeeper error');
-      expect(result.error).toContain('Connection refused');
+      expect(result.content[0].text).toContain('Gatekeeper error');
+      expect(result.content[0].text).toContain('Connection refused');
     });
   });
 
   describe('gk_write tool', () => {
-    const getWriteTool = () => tools.find((t) => t.name === 'gk_write')!;
+    const getWriteTool = () => registeredTools.find((t) => t.name === 'gk_write')!;
 
     it('returns result on allow', async () => {
       mockFetch.mockResolvedValueOnce({
@@ -140,9 +155,9 @@ describe('OpenClaw Gatekeeper Tool Plugin', () => {
           }),
       });
 
-      const result = await getWriteTool().execute({ path: '/tmp/test.txt', content: 'Hello world!' });
+      const result = await getWriteTool().execute('tool-call-id', { path: '/tmp/test.txt', content: 'Hello world!' });
 
-      expect(result.result).toEqual({ path: '/tmp/test.txt', bytesWritten: 12 });
+      expect(result.details).toEqual({ path: '/tmp/test.txt', bytesWritten: 12 });
     });
 
     it('returns error on deny (blocked extension)', async () => {
@@ -157,14 +172,15 @@ describe('OpenClaw Gatekeeper Tool Plugin', () => {
           }),
       });
 
-      const result = await getWriteTool().execute({ path: '/app/.env', content: 'SECRET=abc' });
+      const result = await getWriteTool().execute('tool-call-id', { path: '/app/.env', content: 'SECRET=abc' });
 
-      expect(result.error).toContain('.env');
+      expect(result.content[0].text).toContain('Error');
+      expect(result.content[0].text).toContain('.env');
     });
   });
 
   describe('gk_http tool', () => {
-    const getHttpTool = () => tools.find((t) => t.name === 'gk_http')!;
+    const getHttpTool = () => registeredTools.find((t) => t.name === 'gk_http')!;
 
     it('returns result on allow', async () => {
       mockFetch.mockResolvedValueOnce({
@@ -182,9 +198,9 @@ describe('OpenClaw Gatekeeper Tool Plugin', () => {
           }),
       });
 
-      const result = await getHttpTool().execute({ url: 'https://api.example.com', method: 'GET' });
+      const result = await getHttpTool().execute('tool-call-id', { url: 'https://api.example.com', method: 'GET' });
 
-      expect(result.result).toEqual({
+      expect(result.details).toEqual({
         status: 200,
         headers: { 'content-type': 'application/json' },
         body: '{"success": true}',
@@ -204,54 +220,54 @@ describe('OpenClaw Gatekeeper Tool Plugin', () => {
           }),
       });
 
-      const result = await getHttpTool().execute({
+      const result = await getHttpTool().execute('tool-call-id', {
         url: 'http://169.254.169.254/latest/meta-data/',
         method: 'GET',
       });
 
-      expect(result.error).toContain('blocked range');
-    });
-  });
-
-  describe('formatResult helper', () => {
-    it('formats deny decision', () => {
-      const result = formatResult({
-        decision: 'deny',
-        reason: 'Not allowed',
-      });
-      expect(result.error).toBe('Not allowed');
-    });
-
-    it('formats approve decision', () => {
-      const result = formatResult({
-        decision: 'approve',
-        approvalId: 'abc-123',
-        expiresAt: '2024-01-01T00:00:00Z',
-      });
-      expect(result.pending).toBe(true);
-      expect(result.approvalId).toBe('abc-123');
-      expect(result.message).toContain('2024-01-01T00:00:00Z');
-    });
-
-    it('formats allow decision', () => {
-      const result = formatResult({
-        decision: 'allow',
-        result: { data: 'test' },
-      });
-      expect(result.result).toEqual({ data: 'test' });
+      expect(result.content[0].text).toContain('Error');
+      expect(result.content[0].text).toContain('blocked range');
     });
   });
 
   describe('plugin configuration', () => {
     it('uses default URL when no config provided', () => {
-      // The default URL should be used from GATEKEEPER_URL env var
-      // This is implicitly tested by the other tests working
-      expect(true).toBe(true);
+      // Verify the fetch was called with the default URL
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ decision: 'allow', result: {} }),
+      });
+
+      const tool = registeredTools.find((t) => t.name === 'gk_exec')!;
+      tool.execute('id', { command: 'test' });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://localhost:3847/tool/shell.exec',
+        expect.anything()
+      );
     });
 
     it('accepts custom gatekeeperUrl in config', () => {
-      const result = gatekeeperPlugin.init({ gatekeeperUrl: 'http://custom:9999' });
-      expect(result.tools).toHaveLength(3);
+      // Re-register with custom URL
+      registeredTools = [];
+      mockApi.pluginConfig = { gatekeeperUrl: 'http://custom:9999' };
+      register(mockApi);
+
+      expect(registeredTools).toHaveLength(3);
+
+      // Verify the fetch uses custom URL
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ decision: 'allow', result: {} }),
+      });
+
+      const tool = registeredTools.find((t) => t.name === 'gk_exec')!;
+      tool.execute('id', { command: 'test' });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://custom:9999/tool/shell.exec',
+        expect.anything()
+      );
     });
   });
 });

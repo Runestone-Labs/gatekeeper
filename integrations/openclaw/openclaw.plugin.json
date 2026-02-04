@@ -1,0 +1,15 @@
+{
+  "id": "gatekeeper",
+  "name": "Runestone Gatekeeper",
+  "description": "Policy enforcement, human approval workflows, and audit logging for AI agent tools",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "gatekeeperUrl": {
+        "type": "string",
+        "description": "Gatekeeper server URL (default: http://localhost:3847)"
+      }
+    }
+  }
+}
