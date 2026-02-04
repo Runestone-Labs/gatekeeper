@@ -73,7 +73,18 @@ app.post<{ Params: { toolName: string } }>('/tool/:toolName', async (request, re
     return;
   }
 
-  const { requestId, actor, args, context } = bodyResult.data;
+  const { requestId, actor, args, context, origin, taint, contextRefs, dryRun } = bodyResult.data;
+
+  // Build full envelope for evaluation
+  const envelope = {
+    requestId,
+    actor,
+    args,
+    context,
+    origin,
+    taint,
+    contextRefs,
+  };
 
   // Check if tool exists
   if (!toolExists(toolName)) {
@@ -94,10 +105,10 @@ app.post<{ Params: { toolName: string } }>('/tool/:toolName', async (request, re
 
   const argsSummary = redactSecrets(args);
 
-  // Evaluate against policy
-  const evaluation = evaluateTool(toolName, args, policy);
+  // Evaluate against policy (pass full envelope for v1 features)
+  const evaluation = evaluateTool(toolName, args, policy, envelope);
 
-  // Log the request
+  // Log the request (include v1 envelope fields)
   logToolRequest({
     requestId,
     tool: toolName,
@@ -105,7 +116,23 @@ app.post<{ Params: { toolName: string } }>('/tool/:toolName', async (request, re
     actor,
     argsSummary,
     riskFlags: evaluation.riskFlags,
+    origin,
+    taint,
+    contextRefs,
   });
+
+  // v1: Handle dry run - return evaluation without execution
+  if (dryRun) {
+    reply.status(200).send({
+      decision: evaluation.decision,
+      reason: evaluation.reason,
+      requestId,
+      dryRun: true,
+      riskFlags: evaluation.riskFlags,
+      policyVersion: policySource.getHash(),
+    });
+    return;
+  }
 
   // Handle decision
   switch (evaluation.decision) {

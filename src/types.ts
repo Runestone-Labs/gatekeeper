@@ -2,6 +2,7 @@
 export interface Actor {
   type: 'agent' | 'user';
   name: string;
+  role?: string; // v1: explicit role (e.g., 'navigator', 'sentinel')
   runId?: string;
 }
 
@@ -11,12 +12,35 @@ export interface RequestContext {
   traceId?: string;
 }
 
-// Tool request body
+// v1: Origin types - where did this request come from
+export type Origin =
+  | 'user_direct' // User explicitly requested this
+  | 'model_inferred' // Model decided to do this
+  | 'external_content' // Triggered by external content (URL, email, etc.)
+  | 'background_job'; // Triggered by scheduled/background task
+
+// v1: Context reference - what triggered this call
+export interface ContextRef {
+  type: 'message' | 'url' | 'document' | 'memory_entity';
+  id: string;
+  taint?: string[];
+}
+
+// Tool request body (v1 envelope)
 export interface ToolRequest {
   requestId: string;
   actor: Actor;
   args: Record<string, unknown>;
   context?: RequestContext;
+
+  // v1 envelope fields (all optional for backwards compatibility)
+  origin?: Origin;
+  taint?: string[]; // e.g., ['external', 'email', 'untrusted']
+  contextRefs?: ContextRef[];
+  idempotencyKey?: string; // for safe retries
+  dryRun?: boolean; // preview without execution
+  capabilityToken?: string; // pre-authorized capability
+  timestamp?: string; // ISO 8601
 }
 
 // Tool execution result
@@ -66,6 +90,11 @@ export interface AuditEntry {
   policyHash: string;
   gatekeeperVersion: string;
   approvalId?: string;
+
+  // v1 envelope fields for audit
+  origin?: Origin;
+  taint?: string[];
+  contextRefs?: ContextRef[];
 }
 
 // Tool policy configuration
@@ -88,4 +117,66 @@ export interface ToolPolicy {
 // Full policy structure
 export interface Policy {
   tools: Record<string, ToolPolicy>;
+  principals?: Record<string, PrincipalPolicy>; // v1: role-based policies
+}
+
+// v1: Alert budget configuration
+export interface AlertBudget {
+  maxPerHour: number;
+  severityThreshold: 'low' | 'medium' | 'high';
+  channels?: string[]; // e.g., ['sms', 'discord', 'email']
+}
+
+// v1: Principal/role policy configuration
+export interface PrincipalPolicy {
+  allowedTools: string[];
+  denyPatterns?: string[];
+  requireApproval?: string[];
+  alertBudget?: AlertBudget;
+}
+
+// v1: Execution receipt for successful tool calls
+export interface ExecutionReceipt {
+  startedAt: string;
+  completedAt: string;
+  durationMs: number;
+  resourcesUsed?: Record<string, unknown>;
+}
+
+// v1: Approval request details
+export interface ApprovalRequestDetails {
+  approvalId: string;
+  expiresAt: string;
+  reason: string;
+  humanExplanation: string;
+  diffView?: string;
+  approveUrl?: string;
+  denyUrl?: string;
+}
+
+// v1: Denial details
+export interface DenialDetails {
+  reasonCode: string; // Machine-readable: 'BLOCKED_PATTERN', 'SSRF_DETECTED', 'TAINTED_EXEC'
+  humanExplanation: string;
+  remediation?: string;
+}
+
+// v1: Full tool call response
+export interface ToolCallResponse {
+  requestId: string;
+  decision: Decision;
+
+  // On Allow
+  result?: unknown;
+  executionReceipt?: ExecutionReceipt;
+
+  // On Approve (pending)
+  approvalRequest?: ApprovalRequestDetails;
+
+  // On Deny
+  denial?: DenialDetails;
+
+  // Always present
+  auditId?: string;
+  policyVersion: string;
 }

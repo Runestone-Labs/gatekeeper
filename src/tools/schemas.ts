@@ -37,7 +37,32 @@ export const HttpRequestArgsSchema = z
 export type HttpRequestArgs = z.infer<typeof HttpRequestArgsSchema>;
 
 /**
+ * Context reference schema - what triggered this call.
+ */
+export const ContextRefSchema = z.object({
+  type: z.enum(['message', 'url', 'document', 'memory_entity']),
+  id: z.string().min(1),
+  taint: z.array(z.string()).optional(),
+});
+
+export type ContextRef = z.infer<typeof ContextRefSchema>;
+
+/**
+ * Origin types - where did this request come from.
+ */
+export const OriginSchema = z.enum([
+  'user_direct', // User explicitly requested this
+  'model_inferred', // Model decided to do this
+  'external_content', // Triggered by external content (URL, email, etc.)
+  'background_job', // Triggered by scheduled/background task
+]);
+
+export type Origin = z.infer<typeof OriginSchema>;
+
+/**
  * Tool request body schema.
+ * v1.0: Added role, origin, taint, contextRefs, idempotencyKey, dryRun, capabilityToken
+ * All new fields are optional for backwards compatibility.
  */
 export const ToolRequestSchema = z
   .object({
@@ -46,6 +71,7 @@ export const ToolRequestSchema = z
       .object({
         type: z.enum(['agent', 'user']),
         name: z.string().min(1),
+        role: z.string().optional(), // v1: explicit role (e.g., 'navigator', 'sentinel')
         runId: z.string().optional(),
       })
       .strict(),
@@ -57,6 +83,15 @@ export const ToolRequestSchema = z
       })
       .strict()
       .optional(),
+
+    // v1 envelope fields (all optional for backwards compatibility)
+    origin: OriginSchema.optional(),
+    taint: z.array(z.string()).optional(), // e.g., ['external', 'email', 'untrusted']
+    contextRefs: z.array(ContextRefSchema).optional(),
+    idempotencyKey: z.string().optional(), // for safe retries
+    dryRun: z.boolean().optional(), // preview without execution
+    capabilityToken: z.string().optional(), // pre-authorized capability
+    timestamp: z.string().datetime().optional(), // ISO 8601
   })
   .strict();
 

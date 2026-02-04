@@ -1,16 +1,32 @@
-import { Policy, PolicyEvaluation, ToolPolicy } from '../types.js';
+import { Policy, PolicyEvaluation, ToolPolicy, ToolRequest, Origin, ContextRef, Actor } from '../types.js';
 import { canonicalize } from '../utils.js';
+
+/**
+ * v1 envelope subset for evaluation.
+ * All new fields are optional for backwards compatibility.
+ */
+export interface EvaluationEnvelope {
+  requestId: string;
+  actor: Actor;
+  args: Record<string, unknown>;
+  origin?: Origin;
+  taint?: string[];
+  contextRefs?: ContextRef[];
+}
 
 /**
  * Evaluate a tool request against policy.
  * Returns the decision and a human-readable reason.
  *
  * SECURITY: This is the core enforcement point. All decisions must be auditable.
+ *
+ * v1: Added envelope parameter for taint-aware evaluation.
  */
 export function evaluateTool(
   toolName: string,
   args: Record<string, unknown>,
-  policy: Policy
+  policy: Policy,
+  envelope?: EvaluationEnvelope
 ): PolicyEvaluation {
   const toolPolicy = policy.tools[toolName];
 
@@ -21,6 +37,27 @@ export function evaluateTool(
       reason: `Unknown tool: ${toolName}`,
       riskFlags: ['unknown_tool'],
     };
+  }
+
+  // v1: Check taint-based restrictions FIRST (before regular policy)
+  if (envelope?.taint && envelope.taint.length > 0) {
+    const taintViolation = checkTaintRestrictions(toolName, args, envelope.taint);
+    if (taintViolation) {
+      return taintViolation;
+    }
+  }
+
+  // v1: Check principal/role restrictions
+  if (envelope?.actor?.role && policy.principals) {
+    const principalViolation = checkPrincipalRestrictions(
+      toolName,
+      args,
+      envelope.actor.role,
+      policy.principals
+    );
+    if (principalViolation) {
+      return principalViolation;
+    }
   }
 
   // Check for deny patterns
@@ -50,6 +87,183 @@ export function evaluateTool(
       toolPolicy.decision === 'approve' ? 'Requires human approval' : `Policy allows ${toolName}`,
     riskFlags: [],
   };
+}
+
+/**
+ * v1: Check taint-based restrictions.
+ * External/untrusted content has stricter rules.
+ *
+ * SECURITY: Taint tracking prevents prompt injection attacks from
+ * triggering dangerous operations via model inference.
+ */
+function checkTaintRestrictions(
+  toolName: string,
+  args: Record<string, unknown>,
+  taint: string[]
+): PolicyEvaluation | null {
+  const isExternal = taint.includes('external') || taint.includes('untrusted');
+
+  if (!isExternal) {
+    return null;
+  }
+
+  // External content cannot execute shell commands without approval
+  if (toolName === 'shell.exec') {
+    return {
+      decision: 'approve',
+      reason: 'Shell execution from external/untrusted content requires human approval',
+      riskFlags: ['tainted_exec', 'external_content'],
+    };
+  }
+
+  // External content cannot write to system paths
+  if (toolName === 'files.write') {
+    const path = args.path as string | undefined;
+    if (path && isSystemPath(path)) {
+      return {
+        decision: 'deny',
+        reason: `External content cannot write to system path: ${path}`,
+        riskFlags: ['tainted_write', 'system_path', 'external_content'],
+      };
+    }
+    // Non-system paths still require approval for external content
+    return {
+      decision: 'approve',
+      reason: 'File write from external/untrusted content requires human approval',
+      riskFlags: ['tainted_write', 'external_content'],
+    };
+  }
+
+  // External content HTTP requests to internal IPs require approval
+  if (toolName === 'http.request') {
+    const url = args.url as string | undefined;
+    if (url) {
+      try {
+        const parsed = new URL(url);
+        if (isInternalHost(parsed.hostname)) {
+          return {
+            decision: 'deny',
+            reason: `External content cannot access internal host: ${parsed.hostname}`,
+            riskFlags: ['tainted_request', 'internal_host', 'external_content'],
+          };
+        }
+      } catch {
+        // Invalid URL - will be caught by regular validation
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * v1: Check principal/role restrictions.
+ * Different roles have different allowed tools and approval requirements.
+ *
+ * Evaluation order:
+ * 1. Check deny patterns (always checked first)
+ * 2. Check if tool requires approval for this principal
+ * 3. Check if tool is in allowedTools (empty = all allowed)
+ */
+function checkPrincipalRestrictions(
+  toolName: string,
+  args: Record<string, unknown>,
+  role: string,
+  principals: Record<string, import('../types.js').PrincipalPolicy>
+): PolicyEvaluation | null {
+  const principalPolicy = principals[role];
+
+  // Unknown role - use default behavior
+  if (!principalPolicy) {
+    return null;
+  }
+
+  // 1. Check principal-specific deny patterns FIRST
+  if (principalPolicy.denyPatterns && principalPolicy.denyPatterns.length > 0) {
+    const argsString = canonicalize(args);
+    for (const pattern of principalPolicy.denyPatterns) {
+      try {
+        const regex = new RegExp(pattern, 'i');
+        if (regex.test(argsString)) {
+          return {
+            decision: 'deny',
+            reason: `Denied for role ${role}: matches pattern "${pattern}"`,
+            riskFlags: ['principal_pattern_match', `role:${role}`],
+          };
+        }
+      } catch {
+        // Invalid regex - skip
+      }
+    }
+  }
+
+  // 2. Check if tool requires approval for this principal
+  // This takes precedence over allowedTools check
+  if (principalPolicy.requireApproval && principalPolicy.requireApproval.includes(toolName)) {
+    return {
+      decision: 'approve',
+      reason: `Tool ${toolName} requires approval for role ${role}`,
+      riskFlags: ['principal_approval', `role:${role}`],
+    };
+  }
+
+  // 3. Check if tool is allowed for this principal
+  // Empty allowedTools means all tools are allowed (uses tool-level policy)
+  if (
+    principalPolicy.allowedTools &&
+    principalPolicy.allowedTools.length > 0 &&
+    !principalPolicy.allowedTools.includes(toolName)
+  ) {
+    return {
+      decision: 'deny',
+      reason: `Tool ${toolName} is not allowed for role ${role}`,
+      riskFlags: ['principal_denied', `role:${role}`],
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Check if a path is a system path.
+ */
+function isSystemPath(path: string): boolean {
+  const systemPrefixes = [
+    '/etc/',
+    '/usr/',
+    '/bin/',
+    '/sbin/',
+    '/lib/',
+    '/var/',
+    '/root/',
+    '/boot/',
+    '/sys/',
+    '/proc/',
+    '/dev/',
+    'C:\\Windows',
+    'C:\\Program Files',
+    'C:\\System32',
+  ];
+  return systemPrefixes.some((prefix) => path.startsWith(prefix) || path.toLowerCase().startsWith(prefix.toLowerCase()));
+}
+
+/**
+ * Check if a hostname is internal/private.
+ */
+function isInternalHost(hostname: string): boolean {
+  const internalPatterns = [
+    /^localhost$/i,
+    /^127\./,
+    /^10\./,
+    /^172\.(1[6-9]|2[0-9]|3[0-1])\./,
+    /^192\.168\./,
+    /^169\.254\./, // Link-local / AWS metadata
+    /^::1$/,
+    /^fe80:/i,
+    /\.local$/i,
+    /\.internal$/i,
+  ];
+  return internalPatterns.some((pattern) => pattern.test(hostname));
 }
 
 interface Violation {

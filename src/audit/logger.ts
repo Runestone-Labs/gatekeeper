@@ -1,5 +1,5 @@
 import { config } from '../config.js';
-import { AuditEntry } from '../types.js';
+import { AuditEntry, Origin, ContextRef } from '../types.js';
 import { getAuditSink, getPolicySource } from '../providers/index.js';
 
 /**
@@ -26,6 +26,7 @@ export function writeAuditLog(entry: Omit<AuditEntry, 'policyHash' | 'gatekeeper
 
 /**
  * Log a tool request (initial request, before execution).
+ * v1: Added origin, taint, contextRefs for envelope tracking.
  */
 export function logToolRequest(params: {
   requestId: string;
@@ -35,6 +36,10 @@ export function logToolRequest(params: {
   argsSummary: string;
   riskFlags: string[];
   approvalId?: string;
+  // v1 envelope fields
+  origin?: Origin;
+  taint?: string[];
+  contextRefs?: ContextRef[];
 }): void {
   writeAuditLog({
     timestamp: new Date().toISOString(),
@@ -45,6 +50,10 @@ export function logToolRequest(params: {
     argsSummary: params.argsSummary,
     riskFlags: params.riskFlags,
     approvalId: params.approvalId,
+    // v1 envelope fields
+    origin: params.origin,
+    taint: params.taint,
+    contextRefs: params.contextRefs,
   });
 }
 
