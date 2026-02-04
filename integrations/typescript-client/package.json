@@ -1,15 +1,27 @@
 {
   "name": "@runestone/gatekeeper-client",
-  "version": "0.1.0",
-  "description": "TypeScript client for Runestone Gatekeeper",
+  "version": "0.2.0",
+  "description": "TypeScript client for Runestone Gatekeeper - policy enforcement for AI agent tools",
   "type": "module",
-  "main": "index.ts",
-  "types": "index.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "exports": {
     ".": {
-      "import": "./index.ts",
-      "types": "./index.ts"
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
     }
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   },
   "keywords": [
     "runestone",
@@ -17,10 +29,16 @@
     "ai",
     "agent",
     "security",
-    "policy"
+    "policy",
+    "approval",
+    "audit"
   ],
   "author": "Runestone Labs",
   "license": "Apache-2.0",
+  "homepage": "https://github.com/Runestone-Labs/gatekeeper",
+  "bugs": {
+    "url": "https://github.com/Runestone-Labs/gatekeeper/issues"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/Runestone-Labs/gatekeeper.git",

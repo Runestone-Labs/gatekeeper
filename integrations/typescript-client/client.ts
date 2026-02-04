@@ -101,7 +101,7 @@ export class GatekeeperClient {
     args: ShellExecArgs,
     options?: { actor?: Partial<Actor>; context?: RequestContext }
   ): Promise<GatekeeperResult<ShellExecResult>> {
-    return this.callTool<ShellExecResult>('shell.exec', args, options);
+    return this.callTool<ShellExecResult>('shell.exec', args as unknown as Record<string, unknown>, options);
   }
 
   /**
@@ -111,7 +111,7 @@ export class GatekeeperClient {
     args: FilesWriteArgs,
     options?: { actor?: Partial<Actor>; context?: RequestContext }
   ): Promise<GatekeeperResult<FilesWriteResult>> {
-    return this.callTool<FilesWriteResult>('files.write', args, options);
+    return this.callTool<FilesWriteResult>('files.write', args as unknown as Record<string, unknown>, options);
   }
 
   /**
@@ -121,7 +121,7 @@ export class GatekeeperClient {
     args: HttpRequestArgs,
     options?: { actor?: Partial<Actor>; context?: RequestContext }
   ): Promise<GatekeeperResult<HttpRequestResult>> {
-    return this.callTool<HttpRequestResult>('http.request', args, options);
+    return this.callTool<HttpRequestResult>('http.request', args as unknown as Record<string, unknown>, options);
   }
 
   /**

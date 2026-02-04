@@ -1,49 +1,84 @@
 /**
- * OpenClaw Gatekeeper Skill - Tool Implementations
+ * OpenClaw Gatekeeper Tool Plugin
  *
- * These tools wrap the Gatekeeper client to provide policy-enforced
- * tool execution for OpenClaw agents.
+ * Provides policy-enforced tool execution for OpenClaw agents via Runestone Gatekeeper.
+ * Implements the OpenClaw ToolPlugin interface for proper integration.
  */
 
-import { GatekeeperClient, GatekeeperResult } from '../typescript-client/index.js';
+import { Type, Static } from '@sinclair/typebox';
+import { GatekeeperClient, GatekeeperResult } from '@runestone/gatekeeper-client';
 
-// Initialize client from environment
-const client = new GatekeeperClient({
-  baseUrl: process.env.GATEKEEPER_URL || 'http://localhost:3847',
-  agentName: 'openclaw',
-  runId: process.env.OPENCLAW_RUN_ID,
+// Plugin configuration schema
+const ConfigSchema = Type.Object({
+  gatekeeperUrl: Type.Optional(
+    Type.String({
+      description: 'Gatekeeper URL (default: http://localhost:3847)',
+    })
+  ),
 });
 
+type PluginConfig = Static<typeof ConfigSchema>;
+
+// Tool input schemas
+const ExecInputSchema = Type.Object({
+  command: Type.String({ description: 'Shell command to execute' }),
+  cwd: Type.Optional(Type.String({ description: 'Working directory' })),
+});
+
+const WriteInputSchema = Type.Object({
+  path: Type.String({ description: 'File path to write' }),
+  content: Type.String({ description: 'File content' }),
+  encoding: Type.Optional(
+    Type.Union([Type.Literal('utf8'), Type.Literal('base64')], {
+      description: 'Content encoding (default: utf8)',
+    })
+  ),
+});
+
+const HttpInputSchema = Type.Object({
+  url: Type.String({ description: 'Request URL' }),
+  method: Type.String({ description: 'HTTP method (GET, POST, PUT, DELETE, etc.)' }),
+  headers: Type.Optional(
+    Type.Record(Type.String(), Type.String(), {
+      description: 'Request headers',
+    })
+  ),
+  body: Type.Optional(Type.String({ description: 'Request body' })),
+});
+
+// Singleton client instance
+let client: GatekeeperClient | null = null;
+
 /**
- * Tool result type for OpenClaw
+ * Get or create the Gatekeeper client
  */
-export interface ToolResult {
-  /** Present when operation succeeded */
-  result?: unknown;
-  /** Present when operation failed */
-  error?: string;
-  /** Present when approval is required */
-  pending?: boolean;
-  message?: string;
-  approvalId?: string;
+function getClient(configUrl?: string): GatekeeperClient {
+  if (!client) {
+    const url = configUrl || process.env.GATEKEEPER_URL || 'http://localhost:3847';
+    client = new GatekeeperClient({
+      baseUrl: url,
+      agentName: 'openclaw',
+      runId: process.env.OPENCLAW_RUN_ID,
+    });
+  }
+  return client;
 }
 
 /**
- * Convert Gatekeeper result to OpenClaw tool result format
+ * Format Gatekeeper result for OpenClaw tool response
  */
-function toToolResult(result: GatekeeperResult): ToolResult {
+function formatResult(result: GatekeeperResult): Record<string, unknown> {
   if (result.decision === 'deny') {
     return {
-      error: `Denied: ${result.reason || 'Policy violation'}`,
+      error: result.reason || 'Request denied by policy',
     };
   }
 
   if (result.decision === 'approve') {
     return {
       pending: true,
-      message:
-        `Approval required (expires: ${result.expiresAt}). ` + `Ask user to approve, then retry.`,
       approvalId: result.approvalId,
+      message: `Approval required (expires: ${result.expiresAt}). Ask user to approve, then retry.`,
     };
   }
 
@@ -54,58 +89,84 @@ function toToolResult(result: GatekeeperResult): ToolResult {
 }
 
 /**
- * Execute a shell command through Gatekeeper.
+ * OpenClaw Tool Plugin Definition
  *
- * @param args.command - The shell command to execute
- * @param args.cwd - Optional working directory
- * @returns Tool result with stdout/stderr or error/pending status
+ * Exports tools that route through Gatekeeper for policy enforcement.
  */
-export async function gk_exec(args: { command: string; cwd?: string }): Promise<ToolResult> {
-  const result = await client.shellExec(args);
-  return toToolResult(result);
-}
+const gatekeeperPlugin = {
+  id: 'gatekeeper',
+  slot: 'tool' as const,
+  schema: ConfigSchema,
 
-/**
- * Write a file through Gatekeeper.
- *
- * @param args.path - Absolute path to write to
- * @param args.content - Content to write
- * @param args.encoding - Optional encoding (utf8 or base64)
- * @returns Tool result with path/bytes written or error/pending status
- */
-export async function gk_write(args: {
-  path: string;
-  content: string;
-  encoding?: 'utf8' | 'base64';
-}): Promise<ToolResult> {
-  const result = await client.filesWrite(args);
-  return toToolResult(result);
-}
+  init(config: PluginConfig) {
+    // Initialize client with config URL if provided
+    if (config.gatekeeperUrl) {
+      client = new GatekeeperClient({
+        baseUrl: config.gatekeeperUrl,
+        agentName: 'openclaw',
+        runId: process.env.OPENCLAW_RUN_ID,
+      });
+    }
 
-/**
- * Make an HTTP request through Gatekeeper.
- *
- * @param args.url - URL to request
- * @param args.method - HTTP method
- * @param args.headers - Optional headers
- * @param args.body - Optional request body
- * @returns Tool result with response or error/pending status
- */
-export async function gk_http(args: {
-  url: string;
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS';
-  headers?: Record<string, string>;
-  body?: string;
-}): Promise<ToolResult> {
-  const result = await client.httpRequest(args);
-  return toToolResult(result);
-}
-
-// Export all tools
-export const tools = {
-  gk_exec,
-  gk_write,
-  gk_http,
+    return {
+      tools: [
+        {
+          name: 'gk_exec',
+          description:
+            'Execute a shell command through Gatekeeper policy enforcement. ' +
+            'Commands are validated against security policies before execution.',
+          inputSchema: ExecInputSchema,
+          async execute(params: Static<typeof ExecInputSchema>) {
+            try {
+              const result = await getClient(config.gatekeeperUrl).shellExec(params);
+              return formatResult(result);
+            } catch (err) {
+              return {
+                error: `Gatekeeper error: ${err instanceof Error ? err.message : String(err)}`,
+              };
+            }
+          },
+        },
+        {
+          name: 'gk_write',
+          description:
+            'Write a file through Gatekeeper policy enforcement. ' +
+            'File paths and extensions are validated against security policies.',
+          inputSchema: WriteInputSchema,
+          async execute(params: Static<typeof WriteInputSchema>) {
+            try {
+              const result = await getClient(config.gatekeeperUrl).filesWrite(params);
+              return formatResult(result);
+            } catch (err) {
+              return {
+                error: `Gatekeeper error: ${err instanceof Error ? err.message : String(err)}`,
+              };
+            }
+          },
+        },
+        {
+          name: 'gk_http',
+          description:
+            'Make an HTTP request through Gatekeeper with SSRF protection. ' +
+            'URLs are validated against domain allowlists and private IP ranges are blocked.',
+          inputSchema: HttpInputSchema,
+          async execute(params: Static<typeof HttpInputSchema>) {
+            try {
+              const result = await getClient(config.gatekeeperUrl).httpRequest(params);
+              return formatResult(result);
+            } catch (err) {
+              return {
+                error: `Gatekeeper error: ${err instanceof Error ? err.message : String(err)}`,
+              };
+            }
+          },
+        },
+      ],
+    };
+  },
 };
 
-export default tools;
+export default gatekeeperPlugin;
+
+// Also export for direct usage in tests
+export { getClient, formatResult, ConfigSchema, ExecInputSchema, WriteInputSchema, HttpInputSchema };

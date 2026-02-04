@@ -5,7 +5,7 @@ export default tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    ignores: ['node_modules/', 'coverage/', 'data/', '*.js'],
+    ignores: ['node_modules/', 'coverage/', 'data/', '**/dist/', '*.js'],
   },
   {
     rules: {

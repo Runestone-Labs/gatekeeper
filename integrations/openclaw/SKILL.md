@@ -1,8 +1,8 @@
 ---
 name: gatekeeper
-description: Route tool execution through Runestone Gatekeeper for policy enforcement and approval workflows
+description: Route tool execution through Runestone Gatekeeper for policy enforcement, human approval workflows, and audit logging
 homepage: https://github.com/Runestone-Labs/gatekeeper
-user-invocable: false
+metadata: {"openclaw":{"requires":{"env":["GATEKEEPER_URL"]},"primaryEnv":"GATEKEEPER_URL","emoji":"🔐","os":["darwin","linux","win32"]}}
 ---
 
 # Gatekeeper Integration

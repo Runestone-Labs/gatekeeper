@@ -1,0 +1,12 @@
+# Source files (dist is published instead)
+*.ts
+!*.d.ts
+
+# Test files
+*.test.ts
+
+# Config files
+tsconfig.json
+
+# Development files
+.gitignore

@@ -1,9 +1,21 @@
 {
   "name": "@runestone/gatekeeper-openclaw",
-  "version": "0.1.0",
-  "description": "OpenClaw skill for Runestone Gatekeeper integration",
+  "version": "0.2.0",
+  "description": "OpenClaw tool plugin for Runestone Gatekeeper - policy enforcement for AI agent tools",
   "type": "module",
   "main": "tools.ts",
+  "openclaw": {
+    "extensions": "tools.ts"
+  },
+  "files": [
+    "tools.ts",
+    "SKILL.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "keywords": [
     "runestone",
     "gatekeeper",
@@ -11,16 +23,33 @@
     "ai",
     "agent",
     "security",
-    "skill"
+    "policy",
+    "approval",
+    "audit",
+    "skill",
+    "plugin"
   ],
   "author": "Runestone Labs",
   "license": "Apache-2.0",
+  "homepage": "https://github.com/Runestone-Labs/gatekeeper",
+  "bugs": {
+    "url": "https://github.com/Runestone-Labs/gatekeeper/issues"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/Runestone-Labs/gatekeeper.git",
     "directory": "integrations/openclaw"
   },
   "dependencies": {
-    "@runestone/gatekeeper-client": "file:../typescript-client"
+    "@runestone/gatekeeper-client": "^0.2.0",
+    "@sinclair/typebox": "^0.32.0"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.1.0"
+  },
+  "peerDependenciesMeta": {
+    "openclaw": {
+      "optional": true
+    }
   }
 }
