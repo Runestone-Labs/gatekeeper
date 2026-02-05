@@ -48,6 +48,45 @@ export async function executeMemoryQuery(args: MemoryQueryArgs): Promise<ToolRes
       };
     }
 
+    // Full-text search on name and description
+    if (args.searchText) {
+      // Convert search text to tsquery with prefix matching
+      // Split on spaces, add :* to each term for prefix matching
+      const terms = args.searchText
+        .trim()
+        .split(/\s+/)
+        .filter((t) => t.length > 0)
+        .map((t) => t.replace(/[^a-zA-Z0-9]/g, '')) // Remove special chars
+        .filter((t) => t.length > 0)
+        .map((t) => `${t}:*`)
+        .join(' & ');
+
+      if (!terms) {
+        return { success: false, error: 'Invalid search text' };
+      }
+
+      const matchingEntities = await db
+        .select({
+          id: entities.id,
+          type: entities.type,
+          name: entities.name,
+          description: entities.description,
+          attributes: entities.attributes,
+          confidence: entities.confidence,
+          provenance: entities.provenance,
+          createdAt: entities.createdAt,
+          updatedAt: entities.updatedAt,
+        })
+        .from(entities)
+        .where(sql`search_vector @@ to_tsquery('english', ${terms})`)
+        .limit(args.limit || 50);
+
+      return {
+        success: true,
+        output: { type: 'search', query: args.searchText, data: matchingEntities },
+      };
+    }
+
     // Entity search by type
     if (args.entityType) {
       const matchingEntities = await db

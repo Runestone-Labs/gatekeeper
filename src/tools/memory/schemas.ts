@@ -13,6 +13,9 @@ export const MemoryQueryArgsSchema = z.object({
   entityType: z.enum(entityTypes).optional(),
   entityName: z.string().optional(),
 
+  // Full-text search on name and description
+  searchText: z.string().min(1).max(200).optional(),
+
   // Search entities by attributes
   attributeQuery: z.record(z.unknown()).optional(),
 
