@@ -4,6 +4,7 @@ import {
   MemoryUpsertArgsSchema,
   MemoryLinkArgsSchema,
   MemoryEpisodeArgsSchema,
+  MemoryUnlinkArgsSchema,
 } from './memory/schemas.js';
 
 /**
@@ -122,6 +123,8 @@ export function getToolSchema(toolName: string): z.ZodType | null {
       return MemoryLinkArgsSchema;
     case 'memory.episode':
       return MemoryEpisodeArgsSchema;
+    case 'memory.unlink':
+      return MemoryUnlinkArgsSchema;
     default:
       return null;
   }

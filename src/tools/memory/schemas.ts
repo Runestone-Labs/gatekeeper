@@ -79,3 +79,14 @@ export const MemoryEpisodeArgsSchema = z.object({
 });
 
 export type MemoryEpisodeArgs = z.infer<typeof MemoryEpisodeArgsSchema>;
+
+/**
+ * memory.unlink - Remove a relationship between entities
+ */
+export const MemoryUnlinkArgsSchema = z.object({
+  sourceId: z.string().uuid(),
+  targetId: z.string().uuid(),
+  relation: z.string().min(1).max(100).optional(), // If omitted, delete ALL edges between source/target
+});
+
+export type MemoryUnlinkArgs = z.infer<typeof MemoryUnlinkArgsSchema>;

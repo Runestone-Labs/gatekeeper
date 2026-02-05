@@ -8,6 +8,7 @@ import {
   executeMemoryUpsert,
   executeMemoryLink,
   executeMemoryEpisode,
+  executeMemoryUnlink,
 } from './memory/index.js';
 
 /**
@@ -49,6 +50,10 @@ const tools: Record<string, Tool<unknown>> = {
   'memory.episode': {
     name: 'memory.episode',
     execute: executeMemoryEpisode as ToolExecutor<unknown>,
+  },
+  'memory.unlink': {
+    name: 'memory.unlink',
+    execute: executeMemoryUnlink as ToolExecutor<unknown>,
   },
 };
 
