@@ -231,6 +231,54 @@ Create a relationship between two entities in the AGE graph.
 
 ---
 
+### memory.unlink
+
+Remove a relationship between two entities in the AGE graph.
+
+**Schema:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `sourceId` | UUID | Yes | Source entity ID |
+| `targetId` | UUID | Yes | Target entity ID |
+| `relation` | string | No | Relation type to delete (if omitted, deletes ALL edges) |
+
+**Example - Delete specific relation:**
+```json
+{
+  "args": {
+    "sourceId": "e4f0be98-c583-4e2d-9c2f-355758ea239d",
+    "targetId": "44ca9b38-2074-416d-b2c0-42b1086b17fb",
+    "relation": "owns"
+  }
+}
+```
+
+**Example - Delete all relations between entities:**
+```json
+{
+  "args": {
+    "sourceId": "e4f0be98-c583-4e2d-9c2f-355758ea239d",
+    "targetId": "44ca9b38-2074-416d-b2c0-42b1086b17fb"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "result": {
+    "sourceId": "e4f0be98-...",
+    "targetId": "44ca9b38-...",
+    "relation": "owns",
+    "deleted": 1
+  }
+}
+```
+
+---
+
 ### memory.query
 
 Query entities and relationships. Supports multiple query modes.
@@ -240,7 +288,8 @@ Query entities and relationships. Supports multiple query modes.
 | Field | Type | Description |
 |-------|------|-------------|
 | `entityId` | UUID | Lookup entity by ID |
-| `entityName` | string | Lookup entity by name |
+| `entityName` | string | Lookup entity by exact name |
+| `searchText` | string | Full-text search on name and description |
 | `entityType` | enum | Filter by entity type |
 | `attributeQuery` | object | Search by attributes (JSONB containment) |
 | `fromEntity` | UUID | Start neighborhood traversal from this entity |
@@ -251,6 +300,12 @@ Query entities and relationships. Supports multiple query modes.
 | `minImportance` | number | Filter episodes by importance |
 | `since` | datetime | Filter episodes by date |
 | `limit` | number | Max results (1-100, default 50) |
+
+**Example - Full-Text Search (NEW):**
+```json
+{"args": {"searchText": "gate"}}
+```
+Returns entities where name or description contains words starting with "gate" (e.g., "Gatekeeper").
 
 **Example - Entity Lookup:**
 ```json

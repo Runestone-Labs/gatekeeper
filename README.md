@@ -408,7 +408,8 @@ When `DATABASE_URL` is configured with PostgreSQL + Apache AGE, Gatekeeper provi
 |------|-------------|
 | `memory.upsert` | Create/update entities (people, projects, concepts) |
 | `memory.link` | Create relationships between entities |
-| `memory.query` | Query entities and traverse relationships |
+| `memory.unlink` | Remove relationships between entities |
+| `memory.query` | Query entities (with full-text search) and traverse relationships |
 | `memory.episode` | Log decisions, events, and observations |
 
 ```bash
