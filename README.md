@@ -400,9 +400,35 @@ npm run dev
 npm start
 ```
 
+## Memory System (Optional)
+
+When `DATABASE_URL` is configured with PostgreSQL + Apache AGE, Gatekeeper provides graph-based memory tools:
+
+| Tool | Description |
+|------|-------------|
+| `memory.upsert` | Create/update entities (people, projects, concepts) |
+| `memory.link` | Create relationships between entities |
+| `memory.query` | Query entities and traverse relationships |
+| `memory.episode` | Log decisions, events, and observations |
+
+```bash
+# Create an entity
+curl -X POST http://localhost:3847/tool/memory.upsert \
+  -H "Content-Type: application/json" \
+  -d '{"requestId":"...","actor":{"type":"agent","name":"test"},"args":{"type":"person","name":"Alice"}}'
+
+# Link two entities
+curl -X POST http://localhost:3847/tool/memory.link \
+  -H "Content-Type: application/json" \
+  -d '{"requestId":"...","actor":{"type":"agent","name":"test"},"args":{"sourceId":"<id1>","targetId":"<id2>","relation":"knows"}}'
+```
+
+See [docs/MEMORY.md](docs/MEMORY.md) for setup and full API reference.
+
 ## Documentation
 
 ### Guides
+- [docs/MEMORY.md](docs/MEMORY.md) - Graph-based memory system setup and usage
 - [docs/POLICY_GUIDE.md](docs/POLICY_GUIDE.md) - How to write and customize policies
 - [docs/APPROVALS.md](docs/APPROVALS.md) - Approval workflow details and troubleshooting
 - [docs/AUDIT_LOGS.md](docs/AUDIT_LOGS.md) - Audit log format and querying
