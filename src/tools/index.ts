@@ -3,6 +3,12 @@ import { getToolSchema } from './schemas.js';
 import { executeShellExec } from './shellExec.js';
 import { executeFilesWrite } from './filesWrite.js';
 import { executeHttpRequest } from './httpRequest.js';
+import {
+  executeMemoryQuery,
+  executeMemoryUpsert,
+  executeMemoryLink,
+  executeMemoryEpisode,
+} from './memory/index.js';
 
 /**
  * Tool registry and executor.
@@ -27,6 +33,22 @@ const tools: Record<string, Tool<unknown>> = {
   'http.request': {
     name: 'http.request',
     execute: executeHttpRequest as ToolExecutor<unknown>,
+  },
+  'memory.query': {
+    name: 'memory.query',
+    execute: executeMemoryQuery as ToolExecutor<unknown>,
+  },
+  'memory.upsert': {
+    name: 'memory.upsert',
+    execute: executeMemoryUpsert as ToolExecutor<unknown>,
+  },
+  'memory.link': {
+    name: 'memory.link',
+    execute: executeMemoryLink as ToolExecutor<unknown>,
+  },
+  'memory.episode': {
+    name: 'memory.episode',
+    execute: executeMemoryEpisode as ToolExecutor<unknown>,
   },
 };
 

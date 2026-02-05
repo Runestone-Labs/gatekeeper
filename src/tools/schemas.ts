@@ -1,4 +1,10 @@
 import { z } from 'zod';
+import {
+  MemoryQueryArgsSchema,
+  MemoryUpsertArgsSchema,
+  MemoryLinkArgsSchema,
+  MemoryEpisodeArgsSchema,
+} from './memory/schemas.js';
 
 /**
  * Zod schemas for tool arguments.
@@ -108,6 +114,14 @@ export function getToolSchema(toolName: string): z.ZodType | null {
       return FilesWriteArgsSchema;
     case 'http.request':
       return HttpRequestArgsSchema;
+    case 'memory.query':
+      return MemoryQueryArgsSchema;
+    case 'memory.upsert':
+      return MemoryUpsertArgsSchema;
+    case 'memory.link':
+      return MemoryLinkArgsSchema;
+    case 'memory.episode':
+      return MemoryEpisodeArgsSchema;
     default:
       return null;
   }

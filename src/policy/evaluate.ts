@@ -1,4 +1,4 @@
-import { Policy, PolicyEvaluation, ToolPolicy, ToolRequest, Origin, ContextRef, Actor } from '../types.js';
+import { Policy, PolicyEvaluation, ToolPolicy, Origin, ContextRef, Actor } from '../types.js';
 import { canonicalize } from '../utils.js';
 
 /**

@@ -46,20 +46,27 @@
     "gatekeeper:unsafe": "tsx scripts/gatekeeper-demo.ts unsafe",
     "gatekeeper:safe": "tsx scripts/gatekeeper-demo.ts safe",
     "gatekeeper:record": "vhs scripts/gatekeeper-demo.tape",
-    "gatekeeper:render": "bash scripts/render-video.sh"
+    "gatekeeper:render": "bash scripts/render-video.sh",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.2",
+    "drizzle-orm": "^0.30.0",
     "fastify": "^5.2.1",
     "js-yaml": "^4.1.0",
+    "pg": "^8.11.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.10.7",
+    "@types/pg": "^8.11.0",
     "@types/supertest": "^6.0.3",
     "@vitest/coverage-v8": "^4.0.18",
+    "drizzle-kit": "^0.21.0",
     "eslint": "^9.39.2",
     "prettier": "^3.8.1",
     "supertest": "^7.2.2",

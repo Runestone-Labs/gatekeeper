@@ -32,6 +32,9 @@ export const config = {
   policyPath: process.env.POLICY_PATH || join(projectRoot, 'policy.yaml'),
   dataDir: process.env.DATA_DIR || join(projectRoot, 'data'),
 
+  // Database (for MemoryGraph)
+  databaseUrl: process.env.DATABASE_URL || '',
+
   // Slack
   slackWebhookUrl: process.env.SLACK_WEBHOOK_URL || '',
 
