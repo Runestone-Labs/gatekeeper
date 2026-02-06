@@ -1,5 +1,5 @@
 import { eq, and, gte, sql } from 'drizzle-orm';
-import { getDb, ageQuery, isDbAvailable } from '../../db/client.js';
+import { getDb, ageQuery, rawQuery, isDbAvailable } from '../../db/client.js';
 import { entities, episodes } from '../../db/schema.js';
 import type { MemoryQueryArgs } from './schemas.js';
 import type { ToolResult } from '../../types.js';
@@ -15,6 +15,45 @@ export async function executeMemoryQuery(args: MemoryQueryArgs): Promise<ToolRes
   const db = getDb();
 
   try {
+    // Evidence lookup
+    if (args.evidenceForEntity || args.evidenceForEpisode) {
+      const limit = args.limit || 50;
+
+      if (args.evidenceForEntity) {
+        const rows = await rawQuery(
+          `SELECT e.*, l.entity_id, l.episode_id, l.relevance
+           FROM evidence_links l
+           JOIN evidence e ON e.id = l.evidence_id
+           WHERE l.entity_id = $1
+           ORDER BY l.relevance DESC, e.captured_at DESC
+           LIMIT $2`,
+          [args.evidenceForEntity, limit]
+        );
+
+        return {
+          success: true,
+          output: { type: 'evidence', target: { entityId: args.evidenceForEntity }, data: rows },
+        };
+      }
+
+      if (args.evidenceForEpisode) {
+        const rows = await rawQuery(
+          `SELECT e.*, l.entity_id, l.episode_id, l.relevance
+           FROM evidence_links l
+           JOIN evidence e ON e.id = l.evidence_id
+           WHERE l.episode_id = $1
+           ORDER BY l.relevance DESC, e.captured_at DESC
+           LIMIT $2`,
+          [args.evidenceForEpisode, limit]
+        );
+
+        return {
+          success: true,
+          output: { type: 'evidence', target: { episodeId: args.evidenceForEpisode }, data: rows },
+        };
+      }
+    }
+
     // Raw Cypher query (advanced users)
     if (args.cypher) {
       const result = await ageQuery(args.cypher);

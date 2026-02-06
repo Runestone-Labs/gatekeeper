@@ -4,6 +4,7 @@ import {
   MemoryUpsertArgsSchema,
   MemoryLinkArgsSchema,
   MemoryEpisodeArgsSchema,
+  MemoryEvidenceArgsSchema,
 } from '../../src/tools/memory/schemas.js';
 
 describe('Memory Tool Schemas', () => {
@@ -73,6 +74,21 @@ describe('Memory Tool Schemas', () => {
     it('should accept attribute query', () => {
       const result = MemoryQueryArgsSchema.safeParse({
         attributeQuery: { status: 'active', priority: 'high' },
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept evidence query by entity', () => {
+      const result = MemoryQueryArgsSchema.safeParse({
+        evidenceForEntity: '550e8400-e29b-41d4-a716-446655440000',
+        limit: 10,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept evidence query by episode', () => {
+      const result = MemoryQueryArgsSchema.safeParse({
+        evidenceForEpisode: '550e8400-e29b-41d4-a716-446655440001',
       });
       expect(result.success).toBe(true);
     });
@@ -176,6 +192,28 @@ describe('Memory Tool Schemas', () => {
         sourceId: 'not-a-uuid',
         targetId: '550e8400-e29b-41d4-a716-446655440001',
         relation: 'works_at',
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('MemoryEvidenceArgsSchema', () => {
+    it('should accept evidence with links', () => {
+      const result = MemoryEvidenceArgsSchema.safeParse({
+        type: 'url',
+        reference: 'https://example.com',
+        snippet: 'Example snippet',
+        taint: ['external'],
+        entityIds: ['550e8400-e29b-41d4-a716-446655440000'],
+        episodeIds: ['550e8400-e29b-41d4-a716-446655440001'],
+        relevance: 0.8,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject missing reference', () => {
+      const result = MemoryEvidenceArgsSchema.safeParse({
+        type: 'url',
       });
       expect(result.success).toBe(false);
     });

@@ -28,6 +28,11 @@ export const MemoryQueryArgsSchema = z.object({
   episodeType: z.string().optional(),
   minImportance: z.number().min(0).max(1).optional(),
   since: z.string().datetime().optional(),
+
+  // Evidence queries
+  evidenceForEntity: z.string().uuid().optional(),
+  evidenceForEpisode: z.string().uuid().optional(),
+
   limit: z.number().int().min(1).max(100).optional(),
 });
 
@@ -93,3 +98,18 @@ export const MemoryUnlinkArgsSchema = z.object({
 });
 
 export type MemoryUnlinkArgs = z.infer<typeof MemoryUnlinkArgsSchema>;
+
+/**
+ * memory.evidence - Attach evidence/provenance
+ */
+export const MemoryEvidenceArgsSchema = z.object({
+  type: z.string().min(1).max(50),
+  reference: z.string().min(1).max(512),
+  snippet: z.string().optional(),
+  taint: z.array(z.string()).optional(),
+  entityIds: z.array(z.string().uuid()).optional(),
+  episodeIds: z.array(z.string().uuid()).optional(),
+  relevance: z.number().min(0).max(1).optional(),
+});
+
+export type MemoryEvidenceArgs = z.infer<typeof MemoryEvidenceArgsSchema>;
