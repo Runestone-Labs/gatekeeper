@@ -8,7 +8,11 @@
  * ```typescript
  * import { GatekeeperClient } from '@runestone/gatekeeper-client';
  *
- * const gk = new GatekeeperClient('http://localhost:3847');
+ * const gk = new GatekeeperClient({
+ *   baseUrl: 'http://127.0.0.1:3847',
+ *   agentName: 'typescript-agent',
+ *   agentRole: 'openclaw',
+ * });
  * const result = await gk.shellExec({ command: 'ls -la' });
  *
  * if (result.decision === 'allow') {
@@ -16,7 +20,7 @@
  * } else if (result.decision === 'approve') {
  *   console.log('Approval required:', result.approvalId);
  * } else {
- *   console.error('Denied:', result.reason);
+ *   console.error('Denied:', result.humanExplanation);
  * }
  * ```
  */
@@ -26,6 +30,8 @@ import type {
   GatekeeperResult,
   Actor,
   RequestContext,
+  Origin,
+  ContextRef,
   ShellExecArgs,
   ShellExecResult,
   FilesWriteArgs,
@@ -37,15 +43,18 @@ import type {
 export class GatekeeperClient {
   private readonly baseUrl: string;
   private readonly agentName: string;
+  private readonly agentRole: string;
   private readonly runId?: string;
 
   constructor(config: GatekeeperConfig | string) {
     if (typeof config === 'string') {
       this.baseUrl = config;
       this.agentName = 'typescript-agent';
+      this.agentRole = process.env.GATEKEEPER_ROLE;
     } else {
       this.baseUrl = config.baseUrl;
       this.agentName = config.agentName || 'typescript-agent';
+      this.agentRole = config.agentRole || process.env.GATEKEEPER_ROLE;
       this.runId = config.runId;
     }
   }
@@ -60,6 +69,13 @@ export class GatekeeperClient {
     options?: {
       actor?: Partial<Actor>;
       context?: RequestContext;
+      origin?: Origin;
+      taint?: string[];
+      contextRefs?: ContextRef[];
+      idempotencyKey?: string;
+      dryRun?: boolean;
+      capabilityToken?: string;
+      timestamp?: string;
     }
   ): Promise<GatekeeperResult<T>> {
     const requestId = crypto.randomUUID();
@@ -67,8 +83,13 @@ export class GatekeeperClient {
     const actor: Actor = {
       type: 'agent',
       name: this.agentName,
+      role: this.agentRole,
       ...options?.actor,
     };
+
+    if (!actor.role) {
+      throw new Error('Actor role is required');
+    }
 
     if (this.runId && !actor.runId) {
       actor.runId = this.runId;
@@ -79,6 +100,13 @@ export class GatekeeperClient {
       actor,
       args,
       ...(options?.context && { context: options.context }),
+      ...(options?.origin && { origin: options.origin }),
+      ...(options?.taint && { taint: options.taint }),
+      ...(options?.contextRefs && { contextRefs: options.contextRefs }),
+      ...(options?.idempotencyKey && { idempotencyKey: options.idempotencyKey }),
+      ...(options?.dryRun && { dryRun: options.dryRun }),
+      ...(options?.capabilityToken && { capabilityToken: options.capabilityToken }),
+      ...(options?.timestamp && { timestamp: options.timestamp }),
     };
 
     const response = await fetch(`${this.baseUrl}/tool/${tool}`, {
@@ -88,7 +116,16 @@ export class GatekeeperClient {
     });
 
     if (!response.ok && response.status !== 403 && response.status !== 202) {
-      throw new Error(`Gatekeeper request failed: ${response.status} ${response.statusText}`);
+      let details = '';
+      try {
+        const payload = await response.json();
+        if (payload?.error) {
+          details = `: ${payload.error}`;
+        }
+      } catch {
+        // Ignore JSON parse errors.
+      }
+      throw new Error(`Gatekeeper request failed: ${response.status} ${response.statusText}${details}`);
     }
 
     return response.json() as Promise<GatekeeperResult<T>>;

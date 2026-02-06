@@ -8,7 +8,7 @@
     "properties": {
       "gatekeeperUrl": {
         "type": "string",
-        "description": "Gatekeeper server URL (default: http://localhost:3847)"
+        "description": "Gatekeeper server URL (default: http://127.0.0.1:3847)"
       }
     }
   }

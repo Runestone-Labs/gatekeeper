@@ -19,7 +19,7 @@ class GatekeeperClient {
     const requestId = crypto.randomUUID();
     const body = {
       requestId,
-      actor: { type: 'agent', name: this.agentName },
+      actor: { type: 'agent', name: this.agentName, role: this.agentName },
       args,
     };
 
@@ -30,7 +30,16 @@ class GatekeeperClient {
     });
 
     if (!response.ok && response.status !== 403 && response.status !== 202) {
-      throw new Error(`Gatekeeper request failed: ${response.status} ${response.statusText}`);
+      let details = '';
+      try {
+        const payload = await response.json();
+        if (payload?.error) {
+          details = `: ${payload.error}`;
+        }
+      } catch {
+        // Ignore JSON parse errors.
+      }
+      throw new Error(`Gatekeeper request failed: ${response.status} ${response.statusText}${details}`);
     }
 
     return response.json();
@@ -48,22 +57,27 @@ function getClient(): GatekeeperClient {
 
 function formatResult(result: any): any {
   if (result.decision === 'deny') {
-    const reason = result.reason || 'Request denied by policy';
+    const reason =
+      result.humanExplanation ||
+      result.denial?.humanExplanation ||
+      result.reasonCode ||
+      'Request denied by policy';
     return { content: [{ type: 'text', text: 'Error: ' + reason }] };
   }
   if (result.decision === 'approve') {
+    const approval = result.approvalRequest || {};
     return {
       content: [
         {
           type: 'text',
           text:
             'Approval required (expires: ' +
-            result.expiresAt +
+            (result.expiresAt || approval.expiresAt) +
             '). Ask user to approve, then retry. Approval ID: ' +
-            result.approvalId,
+            (result.approvalId || approval.approvalId),
         },
       ],
-      details: { pending: true, approvalId: result.approvalId },
+      details: { pending: true, approvalId: result.approvalId || approval.approvalId },
     };
   }
   return {
@@ -149,7 +163,7 @@ function createGkHttpTool() {
 
 export default function register(api: any) {
   const pluginCfg = api.pluginConfig || {};
-  const gatekeeperUrl = pluginCfg.gatekeeperUrl || process.env.GATEKEEPER_URL || 'http://localhost:3847';
+  const gatekeeperUrl = pluginCfg.gatekeeperUrl || process.env.GATEKEEPER_URL || 'http://127.0.0.1:3847';
 
   // Initialize client
   client = new GatekeeperClient(gatekeeperUrl);

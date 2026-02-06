@@ -43,7 +43,7 @@ Add to your `~/.openclaw/openclaw.json`:
 ```json
 {
   "env": {
-    "GATEKEEPER_URL": "http://localhost:3847"
+    "GATEKEEPER_URL": "http://127.0.0.1:3847"
   },
   "tools": {
     "deny": ["exec", "write", "bash"],
@@ -169,7 +169,7 @@ You can configure the plugin via `openclaw.json`:
       "gatekeeper": {
         "enabled": true,
         "config": {
-          "gatekeeperUrl": "http://localhost:3847"
+          "gatekeeperUrl": "http://127.0.0.1:3847"
         }
       }
     }
@@ -180,7 +180,7 @@ You can configure the plugin via `openclaw.json`:
 Or via environment variable:
 
 ```bash
-export GATEKEEPER_URL=http://localhost:3847
+export GATEKEEPER_URL=http://127.0.0.1:3847
 ```
 
 ## License

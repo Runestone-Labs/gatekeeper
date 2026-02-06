@@ -15,7 +15,7 @@ vi.stubGlobal('crypto', {
 });
 
 // Mock environment
-vi.stubEnv('GATEKEEPER_URL', 'http://localhost:3847');
+vi.stubEnv('GATEKEEPER_URL', 'http://127.0.0.1:3847');
 
 describe('OpenClaw Gatekeeper Tool Plugin', () => {
   let registeredTools: any[] = [];
@@ -100,7 +100,7 @@ describe('OpenClaw Gatekeeper Tool Plugin', () => {
           Promise.resolve({
             decision: 'deny',
             requestId: 'test-uuid-1234',
-            reason: 'Denied: matches deny pattern "rm -rf"',
+            humanExplanation: 'Denied: matches deny pattern "rm -rf"',
           }),
       });
 
@@ -168,7 +168,7 @@ describe('OpenClaw Gatekeeper Tool Plugin', () => {
           Promise.resolve({
             decision: 'deny',
             requestId: 'test-uuid-1234',
-            reason: 'Denied: blocked extension .env',
+            humanExplanation: 'Denied: blocked extension .env',
           }),
       });
 
@@ -216,7 +216,7 @@ describe('OpenClaw Gatekeeper Tool Plugin', () => {
           Promise.resolve({
             decision: 'deny',
             requestId: 'test-uuid-1234',
-            reason: 'Denied: IP in blocked range (metadata endpoint)',
+            humanExplanation: 'Denied: IP in blocked range (metadata endpoint)',
           }),
       });
 
@@ -242,7 +242,7 @@ describe('OpenClaw Gatekeeper Tool Plugin', () => {
       tool.execute('id', { command: 'test' });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:3847/tool/shell.exec',
+        'http://127.0.0.1:3847/tool/shell.exec',
         expect.anything()
       );
     });

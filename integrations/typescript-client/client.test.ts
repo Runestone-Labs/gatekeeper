@@ -5,6 +5,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { GatekeeperClient } from './client.js';
 
+process.env.GATEKEEPER_ROLE = 'test-role';
+
 // Mock fetch globally
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
@@ -25,13 +27,13 @@ describe('GatekeeperClient', () => {
 
   describe('constructor', () => {
     it('accepts string URL', () => {
-      const client = new GatekeeperClient('http://localhost:3847');
+      const client = new GatekeeperClient('http://127.0.0.1:3847');
       expect(client).toBeDefined();
     });
 
     it('accepts config object', () => {
       const client = new GatekeeperClient({
-        baseUrl: 'http://localhost:3847',
+        baseUrl: 'http://127.0.0.1:3847',
         agentName: 'test-agent',
         runId: 'run-123',
       });
@@ -47,14 +49,22 @@ describe('GatekeeperClient', () => {
       });
 
       const client = new GatekeeperClient({
-        baseUrl: 'http://localhost:3847',
+        baseUrl: 'http://127.0.0.1:3847',
         agentName: 'test-agent',
       });
 
-      await client.callTool('shell.exec', { command: 'ls' });
+      await client.callTool('shell.exec', { command: 'ls' }, {
+        origin: 'external_content',
+        taint: ['external'],
+        contextRefs: [{ type: 'url', id: 'https://example.com' }],
+        idempotencyKey: 'idem-123',
+        dryRun: true,
+        capabilityToken: 'cap-token',
+        timestamp: '2026-01-01T00:00:00.000Z',
+      });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:3847/tool/shell.exec',
+        'http://127.0.0.1:3847/tool/shell.exec',
         expect.objectContaining({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -64,8 +74,15 @@ describe('GatekeeperClient', () => {
       const body = JSON.parse(mockFetch.mock.calls[0][1].body);
       expect(body).toEqual({
         requestId: 'test-uuid-1234',
-        actor: { type: 'agent', name: 'test-agent' },
+        actor: { type: 'agent', name: 'test-agent', role: 'test-role' },
         args: { command: 'ls' },
+        origin: 'external_content',
+        taint: ['external'],
+        contextRefs: [{ type: 'url', id: 'https://example.com' }],
+        idempotencyKey: 'idem-123',
+        dryRun: true,
+        capabilityToken: 'cap-token',
+        timestamp: '2026-01-01T00:00:00.000Z',
       });
     });
 
@@ -76,7 +93,7 @@ describe('GatekeeperClient', () => {
       });
 
       const client = new GatekeeperClient({
-        baseUrl: 'http://localhost:3847',
+        baseUrl: 'http://127.0.0.1:3847',
         agentName: 'test-agent',
         runId: 'run-456',
       });
@@ -98,7 +115,7 @@ describe('GatekeeperClient', () => {
           }),
       });
 
-      const client = new GatekeeperClient('http://localhost:3847');
+      const client = new GatekeeperClient('http://127.0.0.1:3847');
       const result = await client.callTool('shell.exec', { command: 'echo hello' });
 
       expect(result.decision).toBe('allow');
@@ -118,7 +135,7 @@ describe('GatekeeperClient', () => {
           }),
       });
 
-      const client = new GatekeeperClient('http://localhost:3847');
+      const client = new GatekeeperClient('http://127.0.0.1:3847');
       const result = await client.callTool('shell.exec', { command: 'sudo rm' });
 
       expect(result.decision).toBe('approve');
@@ -134,15 +151,16 @@ describe('GatekeeperClient', () => {
           Promise.resolve({
             decision: 'deny',
             requestId: 'test-uuid-1234',
-            reason: 'Denied: matches deny pattern "rm -rf"',
+            reasonCode: 'TOOL_DENY_PATTERN',
+            humanExplanation: 'Denied: matches deny pattern "rm -rf"',
           }),
       });
 
-      const client = new GatekeeperClient('http://localhost:3847');
+      const client = new GatekeeperClient('http://127.0.0.1:3847');
       const result = await client.callTool('shell.exec', { command: 'rm -rf /' });
 
       expect(result.decision).toBe('deny');
-      expect(result.reason).toContain('rm -rf');
+      expect(result.reasonCode).toBe('TOOL_DENY_PATTERN');
     });
 
     it('throws on unexpected HTTP errors', async () => {
@@ -152,11 +170,29 @@ describe('GatekeeperClient', () => {
         statusText: 'Internal Server Error',
       });
 
-      const client = new GatekeeperClient('http://localhost:3847');
+      const client = new GatekeeperClient('http://127.0.0.1:3847');
 
       await expect(client.callTool('shell.exec', { command: 'ls' })).rejects.toThrow(
         'Gatekeeper request failed: 500 Internal Server Error'
       );
+    });
+
+    it('throws when actor role is missing', async () => {
+      const originalRole = process.env.GATEKEEPER_ROLE;
+      delete process.env.GATEKEEPER_ROLE;
+
+      const client = new GatekeeperClient({
+        baseUrl: 'http://127.0.0.1:3847',
+        agentName: 'test-agent',
+      });
+
+      await expect(client.callTool('shell.exec', { command: 'ls' })).rejects.toThrow(
+        'Actor role is required'
+      );
+
+      if (originalRole !== undefined) {
+        process.env.GATEKEEPER_ROLE = originalRole;
+      }
     });
   });
 
@@ -167,11 +203,11 @@ describe('GatekeeperClient', () => {
         json: () => Promise.resolve({ decision: 'allow' }),
       });
 
-      const client = new GatekeeperClient('http://localhost:3847');
+      const client = new GatekeeperClient('http://127.0.0.1:3847');
       await client.shellExec({ command: 'ls -la', cwd: '/tmp' });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:3847/tool/shell.exec',
+        'http://127.0.0.1:3847/tool/shell.exec',
         expect.any(Object)
       );
 
@@ -185,11 +221,11 @@ describe('GatekeeperClient', () => {
         json: () => Promise.resolve({ decision: 'allow' }),
       });
 
-      const client = new GatekeeperClient('http://localhost:3847');
+      const client = new GatekeeperClient('http://127.0.0.1:3847');
       await client.filesWrite({ path: '/tmp/test.txt', content: 'hello' });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:3847/tool/files.write',
+        'http://127.0.0.1:3847/tool/files.write',
         expect.any(Object)
       );
 
@@ -203,7 +239,7 @@ describe('GatekeeperClient', () => {
         json: () => Promise.resolve({ decision: 'allow' }),
       });
 
-      const client = new GatekeeperClient('http://localhost:3847');
+      const client = new GatekeeperClient('http://127.0.0.1:3847');
       await client.httpRequest({
         url: 'https://example.com',
         method: 'GET',
@@ -211,7 +247,7 @@ describe('GatekeeperClient', () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:3847/tool/http.request',
+        'http://127.0.0.1:3847/tool/http.request',
         expect.any(Object)
       );
 
@@ -238,7 +274,7 @@ describe('GatekeeperClient', () => {
           }),
       });
 
-      const client = new GatekeeperClient('http://localhost:3847');
+      const client = new GatekeeperClient('http://127.0.0.1:3847');
       const health = await client.health();
 
       expect(health.version).toBe('0.1.0');
@@ -251,7 +287,7 @@ describe('GatekeeperClient', () => {
         status: 503,
       });
 
-      const client = new GatekeeperClient('http://localhost:3847');
+      const client = new GatekeeperClient('http://127.0.0.1:3847');
 
       await expect(client.health()).rejects.toThrow('Health check failed: 503');
     });

@@ -2,7 +2,7 @@
 /**
  * Live Integration Test for Gatekeeper TypeScript Client
  *
- * Run with: GATEKEEPER_URL=http://localhost:3847 npx tsx integrations/live-test.ts
+ * Run with: GATEKEEPER_URL=http://127.0.0.1:3847 npx tsx integrations/live-test.ts
  *
  * Prerequisites:
  * - Gatekeeper running (docker-compose up)
@@ -12,7 +12,7 @@ import { GatekeeperClient } from './typescript-client/index.js';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
-const GATEKEEPER_URL = process.env.GATEKEEPER_URL || 'http://localhost:3847';
+const GATEKEEPER_URL = process.env.GATEKEEPER_URL || 'http://127.0.0.1:3847';
 
 interface TestCase {
   name: string;
@@ -64,7 +64,7 @@ async function main() {
             ? `approvalId=${result.approvalId?.slice(0, 8)}...`
             : result.decision === 'allow'
               ? `exit=${result.result?.exitCode}`
-              : result.reason,
+              : result.humanExplanation,
         };
       },
     },
@@ -75,7 +75,7 @@ async function main() {
         const result = await client.shellExec({ command: 'rm -rf /' });
         return {
           decision: result.decision,
-          details: result.reason,
+          details: result.humanExplanation,
         };
       },
     },
@@ -92,7 +92,7 @@ async function main() {
           details:
             result.decision === 'allow'
               ? `status=${result.result?.status}`
-              : result.reason,
+              : result.humanExplanation,
         };
       },
     },
@@ -139,7 +139,7 @@ async function main() {
             ? `approvalId=${result.approvalId?.slice(0, 8)}...`
             : result.decision === 'allow'
               ? `bytes=${result.result?.bytesWritten}`
-              : result.reason,
+              : result.humanExplanation,
         };
       },
     },
@@ -153,7 +153,7 @@ async function main() {
         });
         return {
           decision: result.decision,
-          details: result.reason,
+          details: result.humanExplanation,
         };
       },
     },
