@@ -9,7 +9,10 @@ services:
       - DEMO_MODE=true
       - LOG_LEVEL=info
     volumes:
-      - ./policy.yaml:/app/policy.yaml:ro
+      # Uses policy.example.yaml out of the box. To customize:
+      #   cp policy.example.yaml policy.yaml
+      #   Then change this line to: ./policy.yaml:/app/policy.yaml:ro
+      - ./policy.example.yaml:/app/policy.yaml:ro
       - gatekeeper-data:/app/data
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3847/health"]
