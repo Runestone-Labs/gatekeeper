@@ -359,9 +359,16 @@ tools:
 Start Gatekeeper with your policy:
 
 ```bash
-docker run -v ./my-policy.yaml:/app/policy.yaml:ro \
-  -p 3847:3847 \
-  runestone-gatekeeper
+# Copy and customize the example policy
+cp policy.example.yaml policy.yaml
+# Edit policy.yaml to your needs, then start with docker-compose:
+docker-compose up
+```
+
+Or test directly without customizing (uses the built-in example policy):
+
+```bash
+docker-compose up
 ```
 
 Test a request:

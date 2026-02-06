@@ -44,21 +44,28 @@ docker-compose up
 
 Gatekeeper is now running at http://127.0.0.1:3847 with demo mode enabled.
 
-Test it:
+Test it with the quickstart script (walks through DENY, ALLOW, and APPROVE):
 ```bash
-# This will be DENIED (dangerous pattern)
-curl -X POST http://127.0.0.1:3847/tool/shell.exec \
-  -H "Content-Type: application/json" \
-  -d '{"requestId":"550e8400-e29b-41d4-a716-446655440001","actor":{"type":"agent","name":"test","role":"openclaw"},"args":{"command":"rm -rf /"}}'
-
-# This will be ALLOWED
-curl -X POST http://127.0.0.1:3847/tool/http.request \
-  -H "Content-Type: application/json" \
-  -d '{"requestId":"550e8400-e29b-41d4-a716-446655440002","actor":{"type":"agent","name":"test","role":"openclaw"},"args":{"url":"https://httpbin.org/get","method":"GET"}}'
+bash examples/quickstart.sh
 ```
 
-To customize policy, edit `policy.yaml` and restart:
+Or test individual decisions:
 ```bash
+# This will be DENIED (dangerous pattern)
+curl -s -X POST http://127.0.0.1:3847/tool/shell.exec \
+  -H "Content-Type: application/json" \
+  -d '{"requestId":"test-001","actor":{"type":"agent","name":"test","role":"openclaw"},"args":{"command":"rm -rf /"}}'
+
+# This will be ALLOWED
+curl -s -X POST http://127.0.0.1:3847/tool/http.request \
+  -H "Content-Type: application/json" \
+  -d '{"requestId":"test-002","actor":{"type":"agent","name":"test","role":"openclaw"},"args":{"url":"https://httpbin.org/get","method":"GET"}}'
+```
+
+To customize policy:
+```bash
+cp policy.example.yaml policy.yaml
+# Edit policy.yaml, then update docker-compose.yaml volume to use ./policy.yaml
 docker-compose restart
 ```
 
@@ -303,7 +310,7 @@ curl http://127.0.0.1:3847/health
 Response:
 ```json
 {
-  "version": "0.1.0",
+  "version": "0.3.0",
   "policyHash": "sha256:abc123...",
   "uptime": 3600,
   "pendingApprovals": 2,
