@@ -39,6 +39,7 @@ export function loadPolicy(policyPath: string): Policy {
     tools[toolName] = {
       decision: config.decision as 'allow' | 'approve' | 'deny',
       deny_patterns: normalizeStringArray(config.deny_patterns),
+      allowed_commands: normalizeStringArray(config.allowed_commands),
       allowed_cwd_prefixes: normalizeStringArray(config.allowed_cwd_prefixes),
       max_output_bytes: normalizeNumber(config.max_output_bytes),
       max_timeout_ms: normalizeNumber(config.max_timeout_ms),
@@ -46,10 +47,20 @@ export function loadPolicy(policyPath: string): Policy {
       deny_extensions: normalizeStringArray(config.deny_extensions),
       max_size_bytes: normalizeNumber(config.max_size_bytes),
       allowed_methods: normalizeStringArray(config.allowed_methods),
+      allowed_domains: normalizeStringArray(config.allowed_domains),
       deny_domains: normalizeStringArray(config.deny_domains),
       deny_ip_ranges: normalizeStringArray(config.deny_ip_ranges),
       timeout_ms: normalizeNumber(config.timeout_ms),
       max_body_bytes: normalizeNumber(config.max_body_bytes),
+      max_redirects: normalizeNumber(config.max_redirects),
+      sandbox_command_prefix: normalizeStringArray(config.sandbox_command_prefix),
+      run_as_uid: normalizeNumber(config.run_as_uid),
+      run_as_gid: normalizeNumber(config.run_as_gid),
+      env_allowlist: normalizeStringArray(config.env_allowlist),
+      env_overrides:
+        config.env_overrides && typeof config.env_overrides === 'object'
+          ? (config.env_overrides as Record<string, string>)
+          : undefined,
     };
   }
 

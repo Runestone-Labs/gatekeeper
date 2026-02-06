@@ -69,10 +69,13 @@ export function checkAlertBudget(
 
 /**
  * Get the effective role for a request.
- * Falls back to actor name if no explicit role is set.
+ * Requires an explicit role on the actor.
  */
 export function getEffectiveRole(actor: { name: string; role?: string }): string {
-  return actor.role || actor.name;
+  if (!actor.role) {
+    throw new Error('Actor role is required');
+  }
+  return actor.role;
 }
 
 /**

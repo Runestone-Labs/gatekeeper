@@ -1,0 +1,5 @@
+principals:
+  openclaw:
+    allowedTools:
+      - shell.exec
+      - files.write

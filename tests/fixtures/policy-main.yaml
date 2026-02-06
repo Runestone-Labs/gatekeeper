@@ -1,0 +1,12 @@
+extends:
+  - ./policy-base.yaml
+
+principals_file: ./policy-principals.yaml
+
+tools:
+  shell.exec:
+    deny_patterns:
+      - "sudo"
+
+global_deny_patterns:
+  - "secret=.+"

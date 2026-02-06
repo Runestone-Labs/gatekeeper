@@ -1,0 +1,19 @@
+tools:
+  shell.exec:
+    decision: approve
+    deny_patterns:
+      - "rm -rf"
+  http.request:
+    decision: allow
+    allowed_methods:
+      - GET
+
+principals:
+  navigator:
+    allowedTools:
+      - http.request
+    requireApproval:
+      - shell.exec
+
+global_deny_patterns:
+  - "token=.+"
