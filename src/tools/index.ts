@@ -9,6 +9,7 @@ import {
   executeMemoryLink,
   executeMemoryEpisode,
   executeMemoryUnlink,
+  executeMemoryEvidence,
 } from './memory/index.js';
 
 /**
@@ -54,6 +55,10 @@ const tools: Record<string, Tool<unknown>> = {
   'memory.unlink': {
     name: 'memory.unlink',
     execute: executeMemoryUnlink as ToolExecutor<unknown>,
+  },
+  'memory.evidence': {
+    name: 'memory.evidence',
+    execute: executeMemoryEvidence as ToolExecutor<unknown>,
   },
 };
 

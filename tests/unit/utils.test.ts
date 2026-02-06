@@ -211,6 +211,19 @@ describe('isPrivateIP', () => {
     expect(isPrivateIP('203.0.113.1')).toBe(false);
   });
 
+  it('detects private IPv6 ranges', () => {
+    expect(isPrivateIP('::1')).toBe(true);
+    expect(isPrivateIP('fe80::1')).toBe(true);
+    expect(isPrivateIP('fc00::1')).toBe(true);
+    expect(isPrivateIP('fd00::1')).toBe(true);
+    expect(isPrivateIP('2001:4860:4860::8888')).toBe(false);
+  });
+
+  it('handles IPv4-mapped IPv6 addresses', () => {
+    expect(isPrivateIP('::ffff:127.0.0.1')).toBe(true);
+    expect(isPrivateIP('::ffff:8.8.8.8')).toBe(false);
+  });
+
   it('treats invalid IPs as private (safe default)', () => {
     expect(isPrivateIP('invalid')).toBe(true);
     expect(isPrivateIP('999.999.999.999')).toBe(true);
@@ -243,5 +256,12 @@ describe('ipInCIDR', () => {
   it('returns false for invalid inputs', () => {
     expect(ipInCIDR('invalid', '10.0.0.0/8')).toBe(false);
     expect(ipInCIDR('10.0.0.1', 'invalid')).toBe(false);
+  });
+
+  it('matches IPv6 CIDR ranges', () => {
+    expect(ipInCIDR('fc00::1', 'fc00::/7')).toBe(true);
+    expect(ipInCIDR('fe80::1', 'fe80::/10')).toBe(true);
+    expect(ipInCIDR('2001:db8::1', '2001:db8::/32')).toBe(true);
+    expect(ipInCIDR('2001:db8::1', '2001:db9::/32')).toBe(false);
   });
 });

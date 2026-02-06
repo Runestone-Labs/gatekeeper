@@ -21,6 +21,16 @@ export async function executeShellExec(
   );
 
   const maxBuffer = policy.max_output_bytes ?? DEFAULT_MAX_OUTPUT_BYTES;
+  const env = buildExecutionEnv(policy);
+  const command = buildCommand(args.command, policy);
+  const uid =
+    typeof policy.run_as_uid === 'number' && Number.isInteger(policy.run_as_uid) && policy.run_as_uid >= 0
+      ? policy.run_as_uid
+      : undefined;
+  const gid =
+    typeof policy.run_as_gid === 'number' && Number.isInteger(policy.run_as_gid) && policy.run_as_gid >= 0
+      ? policy.run_as_gid
+      : undefined;
 
   return new Promise((resolve) => {
     const options = {
@@ -28,9 +38,12 @@ export async function executeShellExec(
       timeout: timeoutMs,
       maxBuffer: maxBuffer,
       encoding: 'utf-8' as const,
+      env,
+      uid,
+      gid,
     };
 
-    exec(args.command, options, (error, stdout, stderr) => {
+    exec(command, options, (error, stdout, stderr) => {
       // Truncate output if it's too large (in case maxBuffer wasn't enough)
       const truncatedStdout = truncate(stdout || '', maxBuffer);
       const truncatedStderr = truncate(stderr || '', maxBuffer);
@@ -48,6 +61,7 @@ export async function executeShellExec(
               stdout: truncatedStdout,
               stderr: truncatedStderr,
               killed: true,
+              command,
             },
           });
           return;
@@ -62,6 +76,7 @@ export async function executeShellExec(
               stdout: truncatedStdout,
               stderr: truncatedStderr,
               truncated: true,
+              command,
             },
           });
           return;
@@ -75,6 +90,7 @@ export async function executeShellExec(
             exitCode: execError.code ?? -1,
             stdout: truncatedStdout,
             stderr: truncatedStderr,
+            command,
           },
         });
         return;
@@ -87,8 +103,39 @@ export async function executeShellExec(
           exitCode: 0,
           stdout: truncatedStdout,
           stderr: truncatedStderr,
+          command,
         },
       });
     });
   });
+}
+
+function buildCommand(command: string, policy: ToolPolicy): string {
+  if (!policy.sandbox_command_prefix || policy.sandbox_command_prefix.length === 0) {
+    return command;
+  }
+
+  return [...policy.sandbox_command_prefix, command].join(' ');
+}
+
+function buildExecutionEnv(policy: ToolPolicy): NodeJS.ProcessEnv | undefined {
+  const allowlist = policy.env_allowlist;
+  const overrides = policy.env_overrides ?? {};
+
+  if (!allowlist || allowlist.length === 0) {
+    return Object.keys(overrides).length > 0 ? { ...process.env, ...overrides } : undefined;
+  }
+
+  const env: NodeJS.ProcessEnv = {};
+  for (const key of allowlist) {
+    if (process.env[key] !== undefined) {
+      env[key] = process.env[key];
+    }
+  }
+
+  for (const [key, value] of Object.entries(overrides)) {
+    env[key] = value;
+  }
+
+  return env;
 }
