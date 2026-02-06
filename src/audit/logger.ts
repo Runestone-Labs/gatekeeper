@@ -1,5 +1,5 @@
 import { config } from '../config.js';
-import { AuditEntry, Origin, ContextRef } from '../types.js';
+import { AuditEntry, Origin, ContextRef, ExecutionReceipt } from '../types.js';
 import { getAuditSink, getPolicySource } from '../providers/index.js';
 
 /**
@@ -34,8 +34,12 @@ export function logToolRequest(params: {
   decision: 'allow' | 'approve' | 'deny';
   actor: AuditEntry['actor'];
   argsSummary: string;
+  argsHash?: string;
   riskFlags: string[];
   approvalId?: string;
+  reasonCode?: string;
+  humanExplanation?: string;
+  remediation?: string;
   // v1 envelope fields
   origin?: Origin;
   taint?: string[];
@@ -48,8 +52,12 @@ export function logToolRequest(params: {
     decision: params.decision,
     actor: params.actor,
     argsSummary: params.argsSummary,
+    argsHash: params.argsHash,
     riskFlags: params.riskFlags,
     approvalId: params.approvalId,
+    reasonCode: params.reasonCode,
+    humanExplanation: params.humanExplanation,
+    remediation: params.remediation,
     // v1 envelope fields
     origin: params.origin,
     taint: params.taint,
@@ -65,7 +73,9 @@ export function logToolExecution(params: {
   tool: string;
   actor: AuditEntry['actor'];
   argsSummary: string;
+  argsHash?: string;
   resultSummary: string;
+  executionReceipt?: ExecutionReceipt;
   riskFlags: string[];
   approvalId?: string;
 }): void {
@@ -76,7 +86,9 @@ export function logToolExecution(params: {
     decision: 'executed',
     actor: params.actor,
     argsSummary: params.argsSummary,
+    argsHash: params.argsHash,
     resultSummary: params.resultSummary,
+    executionReceipt: params.executionReceipt,
     riskFlags: params.riskFlags,
     approvalId: params.approvalId,
   });
@@ -90,9 +102,13 @@ export function logApprovalConsumed(params: {
   tool: string;
   actor: AuditEntry['actor'];
   argsSummary: string;
+  argsHash?: string;
   approvalId: string;
   action: 'approved' | 'denied';
   resultSummary?: string;
+  reasonCode?: string;
+  humanExplanation?: string;
+  remediation?: string;
 }): void {
   writeAuditLog({
     timestamp: new Date().toISOString(),
@@ -101,8 +117,12 @@ export function logApprovalConsumed(params: {
     decision: 'approval_consumed',
     actor: params.actor,
     argsSummary: params.argsSummary,
+    argsHash: params.argsHash,
     resultSummary: params.resultSummary || `Approval ${params.action}`,
     riskFlags: [`action:${params.action}`],
     approvalId: params.approvalId,
+    reasonCode: params.reasonCode,
+    humanExplanation: params.humanExplanation,
+    remediation: params.remediation,
   });
 }

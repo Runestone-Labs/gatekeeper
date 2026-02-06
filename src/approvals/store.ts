@@ -17,6 +17,7 @@ export function createApproval(params: {
   actor: Actor;
   context?: RequestContext;
   requestId: string;
+  idempotencyKey?: string;
 }): { approval: PendingApproval; approveUrl: string; denyUrl: string } {
   const id = generateId();
   const now = new Date();
@@ -33,6 +34,7 @@ export function createApproval(params: {
     actor: params.actor,
     context: params.context,
     requestId: params.requestId,
+    idempotencyKey: params.idempotencyKey,
     createdAt: now.toISOString(),
     expiresAt: expiresAt.toISOString(),
   };
@@ -124,6 +126,37 @@ export function verifyAndConsumeApproval(
 }
 
 /**
+ * Consume an approval without signature verification.
+ * SECURITY: Only use when caller is authorized via a trusted channel.
+ */
+export function consumeApprovalDirect(
+  id: string,
+  action: 'approve' | 'deny'
+): { approval: PendingApproval | null; error?: string } {
+  const approval = loadApproval(id);
+
+  if (!approval) {
+    return { approval: null, error: 'Approval not found' };
+  }
+
+  if (new Date(approval.expiresAt) < new Date()) {
+    approval.status = 'expired';
+    saveApprovalToDisk(approval);
+    return { approval: null, error: 'Approval has expired' };
+  }
+
+  if (approval.status !== 'pending') {
+    return { approval: null, error: `Approval already ${approval.status}` };
+  }
+
+  approval.status = action === 'approve' ? 'approved' : 'denied';
+  approvalCache.set(id, approval);
+  saveApprovalToDisk(approval);
+
+  return { approval };
+}
+
+/**
  * Load an approval from cache or disk.
  */
 function loadApproval(id: string): PendingApproval | null {
@@ -199,11 +232,12 @@ export function countPendingApprovals(): number {
 /**
  * Clean up expired approvals.
  */
-export function cleanupExpiredApprovals(): void {
+export function cleanupExpiredApprovals(): PendingApproval[] {
   ensureApprovalsDir();
 
   const files = readdirSync(config.approvalsDir);
   const now = new Date();
+  const expired: PendingApproval[] = [];
 
   for (const file of files) {
     if (!file.endsWith('.json')) continue;
@@ -212,8 +246,13 @@ export function cleanupExpiredApprovals(): void {
     const approval = loadApproval(id);
 
     if (approval && new Date(approval.expiresAt) < now) {
-      approval.status = 'expired';
-      saveApprovalToDisk(approval);
+      if (approval.status === 'pending') {
+        approval.status = 'expired';
+        saveApprovalToDisk(approval);
+        expired.push(approval);
+      }
     }
   }
+
+  return expired;
 }

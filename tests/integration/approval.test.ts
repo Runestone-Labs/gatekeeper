@@ -9,7 +9,7 @@ const TEST_DATA_DIR = '/tmp/gatekeeper-approval-test';
 vi.mock('../../src/config.js', () => ({
   config: {
     secret: 'test-secret-key-at-least-32-characters-long',
-    baseUrl: 'http://localhost:3847',
+    baseUrl: 'http://127.0.0.1:3847',
     approvalExpiryMs: 60 * 60 * 1000,
     approvalsDir: '/tmp/gatekeeper-approval-test/approvals',
     auditDir: '/tmp/gatekeeper-approval-test/audit',
@@ -60,7 +60,7 @@ describe('approval flow integration', () => {
       const { approval, approveUrl } = createApproval({
         toolName: 'shell.exec',
         args: { command: 'ls -la /tmp' },
-        actor: { type: 'agent', name: 'test-agent' },
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
         requestId: '550e8400-e29b-41d4-a716-446655440000',
       });
 
@@ -85,7 +85,7 @@ describe('approval flow integration', () => {
       const { approval, approveUrl } = createApproval({
         toolName: 'shell.exec',
         args: { command: 'pwd' },
-        actor: { type: 'agent', name: 'test-agent' },
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
         requestId: '550e8400-e29b-41d4-a716-446655440001',
       });
 
@@ -107,7 +107,7 @@ describe('approval flow integration', () => {
       const { approval, approveUrl } = createApproval({
         toolName: 'shell.exec',
         args: { command: 'date' },
-        actor: { type: 'agent', name: 'test-agent' },
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
         requestId: '550e8400-e29b-41d4-a716-446655440002',
       });
 
@@ -124,7 +124,7 @@ describe('approval flow integration', () => {
       const { approval, approveUrl } = createApproval({
         toolName: 'shell.exec',
         args: { command: 'whoami' },
-        actor: { type: 'agent', name: 'test-agent' },
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
         requestId: '550e8400-e29b-41d4-a716-446655440003',
       });
 
@@ -142,7 +142,7 @@ describe('approval flow integration', () => {
       const { approval, denyUrl } = createApproval({
         toolName: 'shell.exec',
         args: { command: 'uptime' },
-        actor: { type: 'agent', name: 'test-agent' },
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
         requestId: '550e8400-e29b-41d4-a716-446655440004',
       });
 
@@ -159,7 +159,7 @@ describe('approval flow integration', () => {
       const { approveUrl, denyUrl } = createApproval({
         toolName: 'shell.exec',
         args: { command: 'hostname' },
-        actor: { type: 'agent', name: 'test-agent' },
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
         requestId: '550e8400-e29b-41d4-a716-446655440005',
       });
 
@@ -177,14 +177,14 @@ describe('approval flow integration', () => {
       const { approval: approval1 } = createApproval({
         toolName: 'shell.exec',
         args: { cwd: '/tmp', command: 'ls' },
-        actor: { type: 'agent', name: 'test-agent' },
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
         requestId: '550e8400-e29b-41d4-a716-446655440006',
       });
 
       const { approval: approval2 } = createApproval({
         toolName: 'shell.exec',
         args: { command: 'ls', cwd: '/tmp' },
-        actor: { type: 'agent', name: 'test-agent' },
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
         requestId: '550e8400-e29b-41d4-a716-446655440007',
       });
 

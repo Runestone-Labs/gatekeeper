@@ -1,9 +1,10 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { verifyAndConsumeApproval } from './store.js';
+import { verifyAndConsumeApproval, consumeApprovalDirect } from './store.js';
 import { executeTool } from '../tools/index.js';
 import { logApprovalConsumed, logToolExecution } from '../audit/logger.js';
-import { redactSecrets } from '../utils.js';
+import { redactSecrets, canonicalize, computeHash } from '../utils.js';
 import { getApprovalProvider, getPolicySource } from '../providers/index.js';
+import { config } from '../config.js';
 
 interface ApprovalParams {
   id: string;
@@ -12,6 +13,11 @@ interface ApprovalParams {
 interface ApprovalQuery {
   sig: string;
   exp: string;
+}
+
+interface ApprovalBody {
+  sig?: string;
+  exp?: string;
 }
 
 /**
@@ -39,6 +45,28 @@ export function registerApprovalRoutes(app: FastifyInstance): void {
       return handleApprovalAction(request, reply, 'deny');
     }
   );
+
+  // POST /approvals/:id/approve
+  app.post<{ Params: ApprovalParams; Body: ApprovalBody }>(
+    '/approvals/:id/approve',
+    async (
+      request: FastifyRequest<{ Params: ApprovalParams; Body: ApprovalBody }>,
+      reply: FastifyReply
+    ) => {
+      return handleApprovalAction(request, reply, 'approve');
+    }
+  );
+
+  // POST /approvals/:id/deny
+  app.post<{ Params: ApprovalParams; Body: ApprovalBody }>(
+    '/approvals/:id/deny',
+    async (
+      request: FastifyRequest<{ Params: ApprovalParams; Body: ApprovalBody }>,
+      reply: FastifyReply
+    ) => {
+      return handleApprovalAction(request, reply, 'deny');
+    }
+  );
 }
 
 async function handleApprovalAction(
@@ -47,9 +75,13 @@ async function handleApprovalAction(
   action: 'approve' | 'deny'
 ): Promise<void> {
   const { id } = request.params;
-  const { sig, exp } = request.query;
+  const query = request.query as ApprovalQuery | undefined;
+  const body = (request.body as ApprovalBody | undefined) || {};
+  const sig = query?.sig || body.sig;
+  const exp = query?.exp || body.exp;
+  const authorizedBySecret = hasSecretAuth(request);
 
-  if (!sig || !exp) {
+  if (!authorizedBySecret && (!sig || !exp)) {
     reply.status(400).send({
       error: 'Missing signature or expiry',
     });
@@ -57,7 +89,9 @@ async function handleApprovalAction(
   }
 
   // Verify and consume the approval
-  const { approval, error } = verifyAndConsumeApproval(id, action, sig, exp);
+  const { approval, error } = authorizedBySecret
+    ? consumeApprovalDirect(id, action)
+    : verifyAndConsumeApproval(id, action, sig as string, exp as string);
 
   if (!approval) {
     // Determine appropriate status code
@@ -75,6 +109,7 @@ async function handleApprovalAction(
   }
 
   const argsSummary = redactSecrets(approval.args);
+  const argsHash = computeHash(canonicalize(approval.args));
 
   if (action === 'deny') {
     // Log the denial
@@ -83,8 +118,11 @@ async function handleApprovalAction(
       tool: approval.toolName,
       actor: approval.actor,
       argsSummary,
+      argsHash,
       approvalId: approval.id,
       action: 'denied',
+      reasonCode: 'APPROVAL_DENIED',
+      humanExplanation: 'The approval request was denied by the user.',
     });
 
     // Notify via approval provider
@@ -114,7 +152,14 @@ async function handleApprovalAction(
   }
 
   // Execute the tool
+  const startedAt = new Date();
   const result = await executeTool(approval.toolName, approval.args, toolPolicy);
+  const completedAt = new Date();
+  const executionReceipt = {
+    startedAt: startedAt.toISOString(),
+    completedAt: completedAt.toISOString(),
+    durationMs: completedAt.getTime() - startedAt.getTime(),
+  };
 
   const resultSummary = redactSecrets(result);
 
@@ -124,8 +169,10 @@ async function handleApprovalAction(
     tool: approval.toolName,
     actor: approval.actor,
     argsSummary,
+    argsHash,
     resultSummary,
     riskFlags: [],
+    executionReceipt,
     approvalId: approval.id,
   });
 
@@ -134,9 +181,12 @@ async function handleApprovalAction(
     tool: approval.toolName,
     actor: approval.actor,
     argsSummary,
+    argsHash,
     approvalId: approval.id,
     action: 'approved',
     resultSummary,
+    reasonCode: 'APPROVAL_APPROVED',
+    humanExplanation: 'The approval request was approved and executed.',
   });
 
   // Notify via approval provider
@@ -154,5 +204,21 @@ async function handleApprovalAction(
     approvalId: approval.id,
     result: result.output,
     error: result.error,
+    executionReceipt,
   });
+}
+
+function hasSecretAuth(request: FastifyRequest): boolean {
+  const authHeader = request.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.slice('Bearer '.length);
+    return token === config.secret;
+  }
+
+  const headerSecret = request.headers['x-gatekeeper-secret'];
+  if (typeof headerSecret === 'string') {
+    return headerSecret === config.secret;
+  }
+
+  return false;
 }

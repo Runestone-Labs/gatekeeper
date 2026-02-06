@@ -5,14 +5,14 @@ import { mkdirSync, rmSync, existsSync, readdirSync } from 'node:fs';
 vi.mock('../../src/config.js', () => ({
   config: {
     secret: 'test-secret-key-at-least-32-characters-long',
-    baseUrl: 'http://localhost:3847',
+    baseUrl: 'http://127.0.0.1:3847',
     approvalExpiryMs: 60 * 60 * 1000, // 1 hour
     approvalsDir: '/tmp/gatekeeper-test-approvals',
   },
 }));
 
 // Import after mocking
-const { createApproval, verifyAndConsumeApproval, countPendingApprovals } =
+const { createApproval, verifyAndConsumeApproval, countPendingApprovals, consumeApprovalDirect } =
   await import('../../src/approvals/store.js');
 
 const TEST_DIR = '/tmp/gatekeeper-test-approvals';
@@ -38,7 +38,7 @@ describe('approval store', () => {
       const { approval } = createApproval({
         toolName: 'shell.exec',
         args: { command: 'ls' },
-        actor: { type: 'agent', name: 'test-agent' },
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
         requestId: '550e8400-e29b-41d4-a716-446655440000',
       });
 
@@ -52,7 +52,7 @@ describe('approval store', () => {
       const { approval } = createApproval({
         toolName: 'shell.exec',
         args: { command: 'ls' },
-        actor: { type: 'agent', name: 'test-agent' },
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
         requestId: '550e8400-e29b-41d4-a716-446655440000',
       });
       const after = new Date();
@@ -69,7 +69,7 @@ describe('approval store', () => {
       const { approveUrl, denyUrl } = createApproval({
         toolName: 'shell.exec',
         args: { command: 'ls' },
-        actor: { type: 'agent', name: 'test-agent' },
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
         requestId: '550e8400-e29b-41d4-a716-446655440000',
       });
 
@@ -85,7 +85,7 @@ describe('approval store', () => {
       const { approval } = createApproval({
         toolName: 'shell.exec',
         args: { command: 'ls' },
-        actor: { type: 'agent', name: 'test-agent' },
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
         requestId: '550e8400-e29b-41d4-a716-446655440000',
       });
 
@@ -97,14 +97,14 @@ describe('approval store', () => {
       const { approval: approval1 } = createApproval({
         toolName: 'shell.exec',
         args: { b: 2, a: 1 },
-        actor: { type: 'agent', name: 'test-agent' },
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
         requestId: '550e8400-e29b-41d4-a716-446655440000',
       });
 
       const { approval: approval2 } = createApproval({
         toolName: 'shell.exec',
         args: { a: 1, b: 2 },
-        actor: { type: 'agent', name: 'test-agent' },
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
         requestId: '550e8400-e29b-41d4-a716-446655440001',
       });
 
@@ -117,7 +117,7 @@ describe('approval store', () => {
       const { approval, approveUrl } = createApproval({
         toolName: 'shell.exec',
         args: { command: 'ls' },
-        actor: { type: 'agent', name: 'test-agent' },
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
         requestId: '550e8400-e29b-41d4-a716-446655440000',
       });
 
@@ -137,7 +137,7 @@ describe('approval store', () => {
       const { approval, approveUrl } = createApproval({
         toolName: 'shell.exec',
         args: { command: 'ls' },
-        actor: { type: 'agent', name: 'test-agent' },
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
         requestId: '550e8400-e29b-41d4-a716-446655440000',
       });
 
@@ -154,7 +154,7 @@ describe('approval store', () => {
       const { approval, approveUrl } = createApproval({
         toolName: 'shell.exec',
         args: { command: 'ls' },
-        actor: { type: 'agent', name: 'test-agent' },
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
         requestId: '550e8400-e29b-41d4-a716-446655440000',
       });
 
@@ -176,7 +176,7 @@ describe('approval store', () => {
       const { approval, approveUrl } = createApproval({
         toolName: 'shell.exec',
         args: { command: 'ls' },
-        actor: { type: 'agent', name: 'test-agent' },
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
         requestId: '550e8400-e29b-41d4-a716-446655440000',
       });
 
@@ -201,7 +201,7 @@ describe('approval store', () => {
       const { approval, denyUrl } = createApproval({
         toolName: 'shell.exec',
         args: { command: 'ls' },
-        actor: { type: 'agent', name: 'test-agent' },
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
         requestId: '550e8400-e29b-41d4-a716-446655440000',
       });
 
@@ -216,27 +216,42 @@ describe('approval store', () => {
     });
   });
 
+  describe('consumeApprovalDirect', () => {
+    it('consumes approval without signature', () => {
+      const { approval } = createApproval({
+        toolName: 'shell.exec',
+        args: { command: 'ls' },
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
+        requestId: '550e8400-e29b-41d4-a716-446655440010',
+      });
+
+      const result = consumeApprovalDirect(approval.id, 'approve');
+      expect(result.approval).not.toBeNull();
+      expect(result.approval?.status).toBe('approved');
+    });
+  });
+
   describe('countPendingApprovals', () => {
     it('counts only pending approvals', () => {
       // Create 3 approvals
       createApproval({
         toolName: 'shell.exec',
         args: { command: 'ls' },
-        actor: { type: 'agent', name: 'test-agent' },
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
         requestId: '550e8400-e29b-41d4-a716-446655440001',
       });
 
       const { approval: approval2, approveUrl } = createApproval({
         toolName: 'shell.exec',
         args: { command: 'pwd' },
-        actor: { type: 'agent', name: 'test-agent' },
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
         requestId: '550e8400-e29b-41d4-a716-446655440002',
       });
 
       createApproval({
         toolName: 'shell.exec',
         args: { command: 'date' },
-        actor: { type: 'agent', name: 'test-agent' },
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
         requestId: '550e8400-e29b-41d4-a716-446655440003',
       });
 

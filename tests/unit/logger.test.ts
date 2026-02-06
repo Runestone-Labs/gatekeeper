@@ -77,7 +77,7 @@ describe('audit logger', () => {
         requestId: 'test-123',
         tool: 'shell.exec',
         decision: 'allow',
-        actor: { type: 'agent', name: 'test' },
+        actor: { type: 'agent', name: 'test', role: 'openclaw' },
         argsSummary: '{}',
         riskFlags: [],
       });
@@ -94,7 +94,7 @@ describe('audit logger', () => {
         requestId: 'test-123',
         tool: 'shell.exec',
         decision: 'allow',
-        actor: { type: 'agent', name: 'test' },
+        actor: { type: 'agent', name: 'test', role: 'openclaw' },
         argsSummary: '{}',
         riskFlags: [],
       });
@@ -122,7 +122,7 @@ describe('audit logger', () => {
         requestId: 'test-123',
         tool: 'shell.exec',
         decision: 'allow',
-        actor: { type: 'agent', name: 'test' },
+        actor: { type: 'agent', name: 'test', role: 'openclaw' },
         argsSummary: '{}',
         riskFlags: [],
       });
@@ -144,7 +144,7 @@ describe('audit logger', () => {
         requestId: 'test-1',
         tool: 'shell.exec',
         decision: 'allow',
-        actor: { type: 'agent', name: 'test' },
+        actor: { type: 'agent', name: 'test', role: 'openclaw' },
         argsSummary: '{}',
         riskFlags: [],
       });
@@ -156,7 +156,7 @@ describe('audit logger', () => {
         requestId: 'test-2',
         tool: 'files.write',
         decision: 'deny',
-        actor: { type: 'agent', name: 'test' },
+        actor: { type: 'agent', name: 'test', role: 'openclaw' },
         argsSummary: '{}',
         riskFlags: ['pattern_match'],
       });
@@ -184,9 +184,12 @@ describe('audit logger', () => {
         requestId: 'req-123',
         tool: 'shell.exec',
         decision: 'approve',
-        actor: { type: 'agent', name: 'test-agent', runId: 'run-1' },
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw', runId: 'run-1' },
         argsSummary: '{"command":"ls"}',
+        argsHash: 'sha256:args-hash',
         riskFlags: ['needs_approval'],
+        reasonCode: 'POLICY_APPROVAL_REQUIRED',
+        humanExplanation: 'Approval required.',
       });
 
       await waitForWrite();
@@ -201,6 +204,7 @@ describe('audit logger', () => {
       expect(entry.decision).toBe('approve');
       expect(entry.actor.name).toBe('test-agent');
       expect(entry.argsSummary).toContain('command');
+      expect(entry.argsHash).toBe('sha256:args-hash');
       expect(entry.riskFlags).toContain('needs_approval');
       expect(entry.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     });
@@ -211,9 +215,15 @@ describe('audit logger', () => {
       logToolExecution({
         requestId: 'req-456',
         tool: 'http.request',
-        actor: { type: 'agent', name: 'test-agent' },
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
         argsSummary: '{"url":"https://example.com"}',
+        argsHash: 'sha256:exec-hash',
         resultSummary: '{"status":200}',
+        executionReceipt: {
+          startedAt: new Date().toISOString(),
+          completedAt: new Date().toISOString(),
+          durationMs: 5,
+        },
         riskFlags: [],
       });
 
@@ -226,6 +236,8 @@ describe('audit logger', () => {
 
       expect(entry.decision).toBe('executed');
       expect(entry.resultSummary).toContain('200');
+      expect(entry.argsHash).toBe('sha256:exec-hash');
+      expect(entry.executionReceipt).toBeDefined();
     });
   });
 
@@ -234,11 +246,14 @@ describe('audit logger', () => {
       logApprovalConsumed({
         requestId: 'req-789',
         tool: 'shell.exec',
-        actor: { type: 'agent', name: 'test-agent' },
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
         argsSummary: '{"command":"ls"}',
+        argsHash: 'sha256:approval-hash',
         approvalId: 'approval-123',
         action: 'approved',
         resultSummary: '{"exitCode":0}',
+        reasonCode: 'APPROVAL_APPROVED',
+        humanExplanation: 'Approved.',
       });
 
       await waitForWrite();
@@ -250,6 +265,8 @@ describe('audit logger', () => {
 
       expect(entry.decision).toBe('approval_consumed');
       expect(entry.approvalId).toBe('approval-123');
+      expect(entry.argsHash).toBe('sha256:approval-hash');
+      expect(entry.reasonCode).toBe('APPROVAL_APPROVED');
       expect(entry.riskFlags).toContain('action:approved');
     });
 
@@ -257,7 +274,7 @@ describe('audit logger', () => {
       logApprovalConsumed({
         requestId: 'req-999',
         tool: 'shell.exec',
-        actor: { type: 'agent', name: 'test-agent' },
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
         argsSummary: '{}',
         approvalId: 'approval-456',
         action: 'denied',
