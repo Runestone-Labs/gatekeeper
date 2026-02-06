@@ -42,19 +42,19 @@ cd gatekeeper
 docker-compose up
 ```
 
-Gatekeeper is now running at http://localhost:3847 with demo mode enabled.
+Gatekeeper is now running at http://127.0.0.1:3847 with demo mode enabled.
 
 Test it:
 ```bash
 # This will be DENIED (dangerous pattern)
-curl -X POST http://localhost:3847/tool/shell.exec \
+curl -X POST http://127.0.0.1:3847/tool/shell.exec \
   -H "Content-Type: application/json" \
-  -d '{"requestId":"550e8400-e29b-41d4-a716-446655440001","actor":{"type":"agent","name":"test"},"args":{"command":"rm -rf /"}}'
+  -d '{"requestId":"550e8400-e29b-41d4-a716-446655440001","actor":{"type":"agent","name":"test","role":"openclaw"},"args":{"command":"rm -rf /"}}'
 
 # This will be ALLOWED
-curl -X POST http://localhost:3847/tool/http.request \
+curl -X POST http://127.0.0.1:3847/tool/http.request \
   -H "Content-Type: application/json" \
-  -d '{"requestId":"550e8400-e29b-41d4-a716-446655440002","actor":{"type":"agent","name":"test"},"args":{"url":"https://httpbin.org/get","method":"GET"}}'
+  -d '{"requestId":"550e8400-e29b-41d4-a716-446655440002","actor":{"type":"agent","name":"test","role":"openclaw"},"args":{"url":"https://httpbin.org/get","method":"GET"}}'
 ```
 
 To customize policy, edit `policy.yaml` and restart:
@@ -89,8 +89,12 @@ export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/..."
 # Optional: Custom port (default: 3847)
 export GATEKEEPER_PORT=3847
 
+# Optional: Bind host (default: 127.0.0.1)
+# Use 0.0.0.0 when running in Docker.
+export GATEKEEPER_HOST=127.0.0.1
+
 # Optional: Base URL for approval links
-export BASE_URL="http://localhost:3847"
+export BASE_URL="http://127.0.0.1:3847"
 ```
 
 ### 3. Create Policy File
@@ -167,16 +171,19 @@ The gatekeeper uses a pluggable provider system for flexibility:
 
 ## Example Requests
 
+All tool requests must include `actor.role` to enforce principal policies. For safe retries, include an `idempotencyKey`.
+
 ### Execute a Tool (Allow Decision)
 
 ```bash
-curl -X POST http://localhost:3847/tool/http.request \
+curl -X POST http://127.0.0.1:3847/tool/http.request \
   -H "Content-Type: application/json" \
   -d '{
     "requestId": "550e8400-e29b-41d4-a716-446655440000",
     "actor": {
       "type": "agent",
       "name": "my-agent",
+      "role": "openclaw",
       "runId": "run-123"
     },
     "args": {
@@ -191,11 +198,19 @@ Response (200):
 {
   "decision": "allow",
   "requestId": "550e8400-e29b-41d4-a716-446655440000",
+  "reasonCode": "POLICY_ALLOW",
+  "humanExplanation": "Policy allows \"http.request\".",
+  "policyVersion": "sha256:abc123...",
   "success": true,
   "result": {
     "status": 200,
     "headers": {"content-type": "application/json"},
     "body": "{...}"
+  },
+  "executionReceipt": {
+    "startedAt": "2024-01-15T10:30:00.000Z",
+    "completedAt": "2024-01-15T10:30:00.120Z",
+    "durationMs": 120
   }
 }
 ```
@@ -203,13 +218,14 @@ Response (200):
 ### Execute a Tool (Approve Decision)
 
 ```bash
-curl -X POST http://localhost:3847/tool/shell.exec \
+curl -X POST http://127.0.0.1:3847/tool/shell.exec \
   -H "Content-Type: application/json" \
   -d '{
     "requestId": "550e8400-e29b-41d4-a716-446655440001",
     "actor": {
       "type": "agent",
-      "name": "my-agent"
+      "name": "my-agent",
+      "role": "openclaw"
     },
     "args": {
       "command": "ls -la /tmp"
@@ -221,24 +237,33 @@ Response (202):
 ```json
 {
   "decision": "approve",
-  "reason": "Requires human approval",
   "requestId": "550e8400-e29b-41d4-a716-446655440001",
   "approvalId": "abc123...",
   "expiresAt": "2026-01-31T13:00:00.000Z",
-  "message": "Approval required. Check local for approval links."
+  "reasonCode": "POLICY_APPROVAL_REQUIRED",
+  "humanExplanation": "Policy requires human approval before running \"shell.exec\".",
+  "message": "Approval required. Check local for approval links.",
+  "approvalRequest": {
+    "approvalId": "abc123...",
+    "expiresAt": "2026-01-31T13:00:00.000Z",
+    "reasonCode": "POLICY_APPROVAL_REQUIRED",
+    "humanExplanation": "Policy requires human approval before running \"shell.exec\"."
+  },
+  "policyVersion": "sha256:abc123..."
 }
 ```
 
 ### Execute a Tool (Deny Decision)
 
 ```bash
-curl -X POST http://localhost:3847/tool/shell.exec \
+curl -X POST http://127.0.0.1:3847/tool/shell.exec \
   -H "Content-Type: application/json" \
   -d '{
     "requestId": "550e8400-e29b-41d4-a716-446655440002",
     "actor": {
       "type": "agent",
-      "name": "my-agent"
+      "name": "my-agent",
+      "role": "openclaw"
     },
     "args": {
       "command": "rm -rf /"
@@ -250,15 +275,29 @@ Response (403):
 ```json
 {
   "decision": "deny",
-  "reason": "Denied: matches deny pattern \"rm -rf\"",
-  "requestId": "550e8400-e29b-41d4-a716-446655440002"
+  "requestId": "550e8400-e29b-41d4-a716-446655440002",
+  "reasonCode": "TOOL_DENY_PATTERN",
+  "humanExplanation": "Request matches a deny pattern configured for this tool.",
+  "policyVersion": "sha256:abc123..."
 }
 ```
+
+### Capability Tokens (Pre-Approved)
+
+If a tool is configured with `decision: approve`, you can pre-authorize a specific call
+with a capability token scoped to tool + args hash:
+
+```bash
+npm run capability:create -- --tool shell.exec --args /tmp/args.json --ttl 3600
+```
+
+Include the `capabilityToken` in the tool request. Gatekeeper will allow the call
+without manual approval if the token is valid.
 
 ### Health Check
 
 ```bash
-curl http://localhost:3847/health
+curl http://127.0.0.1:3847/health
 ```
 
 Response:
@@ -287,6 +326,13 @@ tools:
       - "rm -rf"               # Regex patterns to block
     allowed_cwd_prefixes:
       - "/tmp/"                # Allowed working directories
+    allowed_commands:
+      - "ls"
+      - "git"
+    sandbox_command_prefix:
+      - "firejail"
+      - "--noprofile"
+      - "--"
     max_output_bytes: 1048576
     max_timeout_ms: 30000
 
@@ -301,12 +347,15 @@ tools:
   http.request:
     decision: allow
     allowed_methods: ["GET", "POST"]
+    allowed_domains:
+      - "api.example.com"
     deny_domains:
       - "pastebin.com"
     deny_ip_ranges:            # SSRF protection
       - "127.0.0.0/8"
       - "169.254.0.0/16"
     max_body_bytes: 1048576
+    max_redirects: 3
 ```
 
 For a complete policy writing tutorial, see [docs/POLICY_GUIDE.md](docs/POLICY_GUIDE.md).
@@ -337,7 +386,7 @@ All requests are logged via the configured audit sink. Default (jsonl) writes to
   "requestId": "550e8400-...",
   "tool": "shell.exec",
   "decision": "approve",
-  "actor": {"type": "agent", "name": "my-agent"},
+  "actor": {"type": "agent", "name": "my-agent", "role": "openclaw"},
   "argsSummary": "{\"command\":\"ls -la\"}",
   "riskFlags": [],
   "policyHash": "sha256:abc123...",
@@ -411,17 +460,18 @@ When `DATABASE_URL` is configured with PostgreSQL + Apache AGE, Gatekeeper provi
 | `memory.unlink` | Remove relationships between entities |
 | `memory.query` | Query entities (with full-text search) and traverse relationships |
 | `memory.episode` | Log decisions, events, and observations |
+| `memory.evidence` | Attach evidence/provenance to entities or episodes |
 
 ```bash
 # Create an entity
-curl -X POST http://localhost:3847/tool/memory.upsert \
+curl -X POST http://127.0.0.1:3847/tool/memory.upsert \
   -H "Content-Type: application/json" \
-  -d '{"requestId":"...","actor":{"type":"agent","name":"test"},"args":{"type":"person","name":"Alice"}}'
+  -d '{"requestId":"...","actor":{"type":"agent","name":"test","role":"openclaw"},"args":{"type":"person","name":"Alice"}}'
 
 # Link two entities
-curl -X POST http://localhost:3847/tool/memory.link \
+curl -X POST http://127.0.0.1:3847/tool/memory.link \
   -H "Content-Type: application/json" \
-  -d '{"requestId":"...","actor":{"type":"agent","name":"test"},"args":{"sourceId":"<id1>","targetId":"<id2>","relation":"knows"}}'
+  -d '{"requestId":"...","actor":{"type":"agent","name":"test","role":"openclaw"},"args":{"sourceId":"<id1>","targetId":"<id2>","relation":"knows"}}'
 ```
 
 See [docs/MEMORY.md](docs/MEMORY.md) for setup and full API reference.

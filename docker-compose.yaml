@@ -5,13 +5,14 @@ services:
       - "3847:3847"
     environment:
       - GATEKEEPER_SECRET=${GATEKEEPER_SECRET:-default-dev-secret-change-in-prod}
+      - GATEKEEPER_HOST=0.0.0.0
       - DEMO_MODE=true
       - LOG_LEVEL=info
     volumes:
       - ./policy.yaml:/app/policy.yaml:ro
       - gatekeeper-data:/app/data
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3847/health"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3847/health"]
       interval: 30s
       timeout: 3s
       retries: 3

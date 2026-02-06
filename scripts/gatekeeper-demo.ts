@@ -15,7 +15,7 @@
 import { spawn, ChildProcess } from 'node:child_process';
 
 const METADATA_URL = 'http://127.0.0.1:9999';
-const GATEKEEPER_URL = 'http://localhost:3847';
+const GATEKEEPER_URL = 'http://127.0.0.1:3847';
 const DEMO_SECRET = 'demo-secret-at-least-32-characters-long';
 
 // ANSI colors
@@ -103,7 +103,7 @@ function startGatekeeperServer(): ChildProcess {
     DEMO_MODE: 'true',
     POLICY_PATH: './policy.demo.yaml',
     GATEKEEPER_PORT: '3847',
-    BASE_URL: 'http://localhost:3847',
+    BASE_URL: 'http://127.0.0.1:3847',
     LOG_LEVEL: 'error',
     DATA_DIR: './data',
     GATEKEEPER_SECRET: process.env.GATEKEEPER_SECRET || DEMO_SECRET,
@@ -258,7 +258,7 @@ async function runSafeDemo(): Promise<void> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       requestId: '00000000-0000-0000-0000-000000000099',
-      actor: { type: 'agent', name: 'demo-agent', runId: 'gatekeeper-demo' },
+      actor: { type: 'agent', name: 'demo-agent', role: 'openclaw', runId: 'gatekeeper-demo' },
       args: { url: credsUrl, method: 'GET' },
       context: { conversationId: 'gatekeeper-demo' },
     }),
@@ -266,7 +266,8 @@ async function runSafeDemo(): Promise<void> {
 
   const result = await response.json() as {
     decision?: string;
-    reason?: string;
+    humanExplanation?: string;
+    reasonCode?: string;
     error?: string;
     success?: boolean;
   };
@@ -278,7 +279,9 @@ async function runSafeDemo(): Promise<void> {
   // Show the block
   if (response.status === 403 || result.decision === 'deny') {
     console.log(`${c.red}✗${c.reset} ${c.bold}BLOCKED${c.reset} http.request`);
-    console.log(`  ${c.dim}reason: ${result.reason || result.error || 'Blocked by policy'}${c.reset}`);
+    console.log(
+      `  ${c.dim}reason: ${result.humanExplanation || result.reasonCode || result.error || 'Blocked by policy'}${c.reset}`
+    );
   } else if (result.success === false && result.error) {
     console.log(`${c.red}✗${c.reset} ${c.bold}BLOCKED${c.reset} http.request`);
     console.log(`  ${c.dim}reason: ${result.error}${c.reset}`);

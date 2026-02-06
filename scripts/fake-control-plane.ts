@@ -9,12 +9,14 @@
  *   npm run control-plane
  *
  * Then start gatekeeper with:
- *   APPROVAL_PROVIDER=runestone RUNESTONE_API_URL=http://localhost:3848 npm start
+ *   APPROVAL_PROVIDER=runestone RUNESTONE_API_URL=http://127.0.0.1:3848 npm start
  */
 
 import Fastify from 'fastify';
 
 const PORT = parseInt(process.env.CONTROL_PLANE_PORT || '3848', 10);
+const HOST = process.env.CONTROL_PLANE_HOST || '127.0.0.1';
+const DISPLAY_HOST = HOST === '0.0.0.0' ? '127.0.0.1' : HOST;
 
 interface StoredApproval {
   id: string;
@@ -59,10 +61,10 @@ app.post<{ Body: Omit<StoredApproval, 'status'> }>('/approvals', async (request,
   console.log(`Actor: ${approval.actor.name} (${approval.actor.type})`);
   console.log('');
   console.log('To approve:');
-  console.log(`  curl -X POST http://localhost:${PORT}/approvals/${approval.id}/approve`);
+  console.log(`  curl -X POST http://${DISPLAY_HOST}:${PORT}/approvals/${approval.id}/approve`);
   console.log('');
   console.log('To deny:');
-  console.log(`  curl -X POST http://localhost:${PORT}/approvals/${approval.id}/deny`);
+  console.log(`  curl -X POST http://${DISPLAY_HOST}:${PORT}/approvals/${approval.id}/deny`);
   console.log('='.repeat(60) + '\n');
 
   reply.status(201).send({ id: approval.id, status: 'pending' });
@@ -171,16 +173,16 @@ app.get('/health', async () => {
 
 // Start server
 try {
-  await app.listen({ port: PORT, host: '0.0.0.0' });
+  await app.listen({ port: PORT, host: HOST });
   console.log(`
 ╔══════════════════════════════════════════════════════════════╗
 ║          FAKE RUNESTONE CONTROL PLANE                        ║
 ╠══════════════════════════════════════════════════════════════╣
-║  Running on http://localhost:${PORT}                            ║
+║  Running on http://${DISPLAY_HOST}:${PORT}                            ║
 ║                                                              ║
 ║  Start gatekeeper with:                                      ║
 ║    APPROVAL_PROVIDER=runestone \\                             ║
-║    RUNESTONE_API_URL=http://localhost:${PORT} \\                 ║
+║    RUNESTONE_API_URL=http://${DISPLAY_HOST}:${PORT} \\                 ║
 ║    npm start                                                 ║
 ║                                                              ║
 ║  Endpoints:                                                  ║

@@ -15,7 +15,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 // Configuration
-const BASE_URL = 'http://localhost:3847';
+const BASE_URL = 'http://127.0.0.1:3847';
 const DEMO_SECRET = 'demo-secret-at-least-32-characters-long';
 const STARTUP_TIMEOUT_MS = 10000;
 const SCENARIO_DELAY_MS = 300;
@@ -86,7 +86,7 @@ function spawnServer(): ChildProcess {
     DEMO_MODE: 'true',
     POLICY_PATH: './policy.demo.yaml',
     GATEKEEPER_PORT: '3847',
-    BASE_URL: 'http://localhost:3847',
+    BASE_URL: 'http://127.0.0.1:3847',
     LOG_LEVEL: 'error',
     DATA_DIR: './data',
     GATEKEEPER_SECRET: process.env.GATEKEEPER_SECRET || DEMO_SECRET,
@@ -143,7 +143,7 @@ async function postTool(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       requestId,
-      actor: { type: 'agent', name: 'demo-agent', runId: 'demo-run' },
+      actor: { type: 'agent', name: 'demo-agent', role: 'openclaw', runId: 'demo-run' },
       args,
       context: { conversationId: 'demo', traceId: requestId },
     }),
@@ -170,7 +170,7 @@ async function runDenyScenario(): Promise<void> {
     throw new Error(`Expected DENY, got status=${status} decision=${body.decision}`);
   }
 
-  logDeny('shell.exec', body.reason as string);
+  logDeny('shell.exec', (body.humanExplanation as string) || 'Denied by policy');
 }
 
 async function runApproveScenario(): Promise<void> {

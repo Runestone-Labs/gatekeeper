@@ -22,15 +22,27 @@ Each approval request moves through these states:
 | `expired` | Time limit exceeded, no action taken |
 
 Once an approval leaves `pending`, it cannot be used again (single-use enforcement).
+Expired approvals default to deny and are logged as such.
 
 ## How Approval Links Work
 
 When a request requires approval, Gatekeeper generates two signed URLs:
 
 ```
-http://localhost:3847/approve/{approval-id}?sig={signature}&exp={expiry}
-http://localhost:3847/deny/{approval-id}?sig={signature}&exp={expiry}
+http://127.0.0.1:3847/approve/{approval-id}?sig={signature}&exp={expiry}
+http://127.0.0.1:3847/deny/{approval-id}?sig={signature}&exp={expiry}
 ```
+
+For chat/UI approvals, you can also call:
+
+```
+POST http://127.0.0.1:3847/approvals/{approval-id}/approve
+POST http://127.0.0.1:3847/approvals/{approval-id}/deny
+```
+
+These POST endpoints accept either:
+- A trusted header (`Authorization: Bearer $GATEKEEPER_SECRET` or `X-Gatekeeper-Secret`)
+- Or the same signed fields in the JSON body: `{"sig":"...","exp":"..."}`
 
 ### Security Properties
 
@@ -73,8 +85,8 @@ Approval required for shell.exec
   Agent: my-agent
   Command: rm -rf ./temp/*
 
-  Approve: http://localhost:3847/approve/abc123?sig=...&exp=...
-  Deny:    http://localhost:3847/deny/abc123?sig=...&exp=...
+  Approve: http://127.0.0.1:3847/approve/abc123?sig=...&exp=...
+  Deny:    http://127.0.0.1:3847/deny/abc123?sig=...&exp=...
 ```
 
 Click the link or use curl to approve/deny.
@@ -109,8 +121,14 @@ API response includes:
 {
   "decision": "approve",
   "approvalId": "abc123",
-  "approveUrl": "http://localhost:3847/approve/abc123?sig=...&exp=...",
-  "denyUrl": "http://localhost:3847/deny/abc123?sig=...&exp=..."
+  "approvalRequest": {
+    "approvalId": "abc123",
+    "expiresAt": "2024-01-15T11:00:00.000Z",
+    "reasonCode": "POLICY_APPROVAL_REQUIRED",
+    "humanExplanation": "Policy requires human approval before running \"shell.exec\".",
+    "approveUrl": "http://127.0.0.1:3847/approve/abc123?sig=...&exp=...",
+    "denyUrl": "http://127.0.0.1:3847/deny/abc123?sig=...&exp=..."
+  }
 }
 ```
 
@@ -124,11 +142,11 @@ Your test can then call the approveUrl to complete the flow.
 
 **Step 1: Agent makes request**
 ```bash
-curl -X POST http://localhost:3847/tool/shell.exec \
+curl -X POST http://127.0.0.1:3847/tool/shell.exec \
   -H "Content-Type: application/json" \
   -d '{
     "requestId": "req-001",
-    "actor": {"type": "agent", "name": "my-agent"},
+    "actor": {"type": "agent", "name": "my-agent", "role": "openclaw"},
     "args": {"command": "ls -la /tmp"}
   }'
 ```
@@ -137,17 +155,25 @@ curl -X POST http://localhost:3847/tool/shell.exec \
 ```json
 {
   "decision": "approve",
-  "reason": "Requires human approval",
   "requestId": "req-001",
   "approvalId": "550e8400-e29b-41d4-a716-446655440000",
   "expiresAt": "2024-01-15T11:00:00.000Z",
-  "message": "Approval required. Check local for approval links."
+  "reasonCode": "POLICY_APPROVAL_REQUIRED",
+  "humanExplanation": "Policy requires human approval before running \"shell.exec\".",
+  "message": "Approval required. Check local for approval links.",
+  "approvalRequest": {
+    "approvalId": "550e8400-e29b-41d4-a716-446655440000",
+    "expiresAt": "2024-01-15T11:00:00.000Z",
+    "reasonCode": "POLICY_APPROVAL_REQUIRED",
+    "humanExplanation": "Policy requires human approval before running \"shell.exec\"."
+  }
 }
 ```
 
 **Step 3: Human approves**
 ```bash
-curl "http://localhost:3847/approve/550e8400-e29b-41d4-a716-446655440000?sig=abc123&exp=2024-01-15T11:00:00.000Z"
+curl -X POST http://127.0.0.1:3847/approvals/550e8400-e29b-41d4-a716-446655440000/approve \
+  -H "Authorization: Bearer $GATEKEEPER_SECRET"
 ```
 
 **Step 4: Tool executes and returns result**
@@ -162,33 +188,13 @@ curl "http://localhost:3847/approve/550e8400-e29b-41d4-a716-446655440000?sig=abc
 }
 ```
 
-### Example 2: Agent Polls for Approval
+### Example 2: Chat/UI Approval (No Signed URL)
 
-If you can't use webhooks, the agent can poll for approval status:
+If your chat UI holds the Gatekeeper secret, it can approve directly:
 
-```javascript
-async function waitForApproval(approvalId, timeoutMs = 60000) {
-  const start = Date.now();
-
-  while (Date.now() - start < timeoutMs) {
-    // Check if approval was granted by trying to get status
-    const response = await fetch(`http://localhost:3847/approval/${approvalId}/status`);
-    const data = await response.json();
-
-    if (data.status === 'approved') {
-      return data.result;
-    } else if (data.status === 'denied') {
-      throw new Error('Request denied by human');
-    } else if (data.status === 'expired') {
-      throw new Error('Approval expired');
-    }
-
-    // Still pending, wait and retry
-    await new Promise(r => setTimeout(r, 2000));
-  }
-
-  throw new Error('Timeout waiting for approval');
-}
+```bash
+curl -X POST http://127.0.0.1:3847/approvals/550e8400-e29b-41d4-a716-446655440000/deny \
+  -H "X-Gatekeeper-Secret: $GATEKEEPER_SECRET"
 ```
 
 ---
@@ -252,7 +258,7 @@ Each file contains:
   "toolName": "shell.exec",
   "args": {"command": "ls -la"},
   "canonicalArgs": "{\"command\":\"ls -la\"}",
-  "actor": {"type": "agent", "name": "my-agent"},
+  "actor": {"type": "agent", "name": "my-agent", "role": "openclaw"},
   "requestId": "req-001",
   "createdAt": "2024-01-15T10:00:00.000Z",
   "expiresAt": "2024-01-15T11:00:00.000Z"

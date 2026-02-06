@@ -29,6 +29,28 @@ tools:
       - "./data/"
       - "./output/"
 
+    # Allowed commands (only simple commands permitted when set)
+    # allowed_commands:
+    #   - "ls"
+    #   - "git"
+
+    # Optional sandbox prefix (prepended to every command)
+    # sandbox_command_prefix:
+    #   - "firejail"
+    #   - "--noprofile"
+    #   - "--"
+
+    # Optional user/group to run as (requires appropriate privileges)
+    # run_as_uid: 1000
+    # run_as_gid: 1000
+
+    # Optional environment allowlist and overrides
+    # env_allowlist:
+    #   - "PATH"
+    #   - "HOME"
+    # env_overrides:
+    #   NODE_ENV: "production"
+
     # Limits
     max_output_bytes: 1048576   # 1MB
     max_timeout_ms: 30000       # 30 seconds
@@ -72,6 +94,11 @@ tools:
       - tinyurl.com
       - gist.github.com
 
+    # Allowed domains (exact or suffix match)
+    # allowed_domains:
+    #   - "api.example.com"
+    #   - ".example.org"
+
     # SSRF protection: blocked IP ranges (CIDR notation)
     deny_ip_ranges:
       - "127.0.0.0/8"      # Loopback
@@ -84,3 +111,4 @@ tools:
     # Limits
     timeout_ms: 30000           # 30 seconds
     max_body_bytes: 1048576     # 1MB response body limit
+    max_redirects: 3

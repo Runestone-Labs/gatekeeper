@@ -106,7 +106,7 @@ const result = await executeToolViaGatekeeper(
     args: { command: 'ls -la /tmp' },
   },
   {
-    gatekeeperUrl: 'http://localhost:3847',
+    gatekeeperUrl: 'http://127.0.0.1:3847',
     agentName: 'my-agent',
     runId: 'run-123',
     onApprovalRequired: (approvalId, expiresAt) => {

@@ -50,8 +50,15 @@ The integration pattern is simple:
 └─────────────┘     └──────────────┘     └─────────────┘
 ```
 
+Requests must include `actor.role` so Gatekeeper can apply principal policies.
+
 The agent does not need to "know" about governance logic. It simply
 routes tool calls through an HTTP endpoint.
+
+### Idempotency and Capabilities
+
+- **Idempotency**: Include `idempotencyKey` to make retries safe. Gatekeeper will replay the original decision/response and avoid double execution.
+- **Capability tokens**: Use `capabilityToken` to pre-authorize an approve decision without manual approval. Tokens are scoped to tool + args hash.
 
 ## Example Adapter
 

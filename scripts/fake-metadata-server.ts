@@ -6,7 +6,7 @@
  * Returns realistic-looking but obviously fake AWS credentials.
  *
  * Usage: tsx scripts/fake-metadata-server.ts
- * Runs on localhost:9999
+ * Runs on 127.0.0.1:9999
  */
 
 import { createServer, IncomingMessage, ServerResponse } from 'node:http';

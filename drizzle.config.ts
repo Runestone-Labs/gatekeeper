@@ -5,6 +5,6 @@ export default defineConfig({
   out: './drizzle',
   dialect: 'postgresql',
   dbCredentials: {
-    url: process.env.DATABASE_URL || 'postgresql://runestone:runestone_dev@localhost:5432/memory',
+    url: process.env.DATABASE_URL || 'postgresql://runestone:runestone_dev@127.0.0.1:5432/memory',
   },
 });

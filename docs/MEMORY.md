@@ -20,6 +20,7 @@ The memory system enables agents to:
 │  memory.link    → AGE Graph (relationships)             │
 │  memory.query   → SQL + Cypher                          │
 │  memory.episode → SQL (episodes table)                  │
+│  memory.evidence → SQL (evidence + links)               │
 └─────────────────────────────────────────────────────────┘
                           │
                           ▼
@@ -69,18 +70,18 @@ docker exec runestone-memory psql -U runestone -d memory -c "
 "
 
 # Set environment variable
-export DATABASE_URL="postgresql://runestone:runestone_dev@localhost:5433/memory"
+export DATABASE_URL="postgresql://runestone:runestone_dev@127.0.0.1:5433/memory"
 ```
 
 ### Basic Usage
 
 ```bash
 # Create an entity
-curl -X POST http://localhost:3847/tool/memory.upsert \
+curl -X POST http://127.0.0.1:3847/tool/memory.upsert \
   -H "Content-Type: application/json" \
   -d '{
     "requestId": "550e8400-e29b-41d4-a716-446655440001",
-    "actor": {"type": "agent", "name": "my-agent"},
+    "actor": {"type": "agent", "name": "my-agent", "role": "openclaw"},
     "args": {
       "type": "person",
       "name": "Alice",
@@ -89,11 +90,11 @@ curl -X POST http://localhost:3847/tool/memory.upsert \
   }'
 
 # Query the entity
-curl -X POST http://localhost:3847/tool/memory.query \
+curl -X POST http://127.0.0.1:3847/tool/memory.query \
   -H "Content-Type: application/json" \
   -d '{
     "requestId": "550e8400-e29b-41d4-a716-446655440002",
-    "actor": {"type": "agent", "name": "my-agent"},
+    "actor": {"type": "agent", "name": "my-agent", "role": "openclaw"},
     "args": {"entityName": "Alice"}
   }'
 ```
@@ -279,6 +280,55 @@ Remove a relationship between two entities in the AGE graph.
 
 ---
 
+### memory.evidence
+
+Attach evidence/provenance to entities or episodes.
+
+**Schema:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | string | Yes | Evidence type (e.g., `url`, `document`, `note`) |
+| `reference` | string | Yes | Source reference (URL, file path, etc.) |
+| `snippet` | string | No | Optional snippet or excerpt |
+| `taint` | string[] | No | Taint labels for this evidence |
+| `entityIds` | UUID[] | No | Entities linked to this evidence |
+| `episodeIds` | UUID[] | No | Episodes linked to this evidence |
+| `relevance` | number | No | 0.0-1.0 relevance score (default 1.0) |
+
+**Example:**
+```json
+{
+  "args": {
+    "type": "url",
+    "reference": "https://example.com/post/123",
+    "snippet": "Launch updated for Q2.",
+    "taint": ["external"],
+    "entityIds": ["550e8400-e29b-41d4-a716-446655440000"],
+    "episodeIds": ["550e8400-e29b-41d4-a716-446655440001"]
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "result": {
+    "evidence": {
+      "id": "550e8400-e29b-41d4-a716-446655440009",
+      "type": "url",
+      "reference": "https://example.com/post/123",
+      "snippet": "Launch updated for Q2."
+    },
+    "linkedEntities": 1,
+    "linkedEpisodes": 1
+  }
+}
+```
+
+---
+
 ### memory.query
 
 Query entities and relationships. Supports multiple query modes.
@@ -299,6 +349,8 @@ Query entities and relationships. Supports multiple query modes.
 | `episodeType` | string | Query episodes by type |
 | `minImportance` | number | Filter episodes by importance |
 | `since` | datetime | Filter episodes by date |
+| `evidenceForEntity` | UUID | Fetch evidence linked to an entity |
+| `evidenceForEpisode` | UUID | Fetch evidence linked to an episode |
 | `limit` | number | Max results (1-100, default 50) |
 
 **Example - Full-Text Search (NEW):**
@@ -351,6 +403,16 @@ Returns entities where name or description contains words starting with "gate" (
     "minImportance": 0.7,
     "since": "2026-02-01T00:00:00Z",
     "limit": 10
+  }
+}
+```
+
+**Example - Evidence Query:**
+```json
+{
+  "args": {
+    "evidenceForEntity": "550e8400-e29b-41d4-a716-446655440000",
+    "limit": 5
   }
 }
 ```
@@ -487,7 +549,7 @@ SELECT create_graph('memory_graph');
 
 Example:
 ```bash
-DATABASE_URL="postgresql://runestone:password@localhost:5433/memory"
+DATABASE_URL="postgresql://runestone:password@127.0.0.1:5433/memory"
 ```
 
 ---

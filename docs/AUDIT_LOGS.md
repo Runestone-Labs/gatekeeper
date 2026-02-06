@@ -45,13 +45,22 @@ Each file contains one JSON object per line (JSONL format).
 | `actor` | object | Who made the request |
 | `actor.type` | string | `agent` or `user` |
 | `actor.name` | string | Agent/user identifier |
+| `actor.role` | string | Required role for policy enforcement |
 | `actor.runId` | string | Optional correlation ID for the agent run |
 | `argsSummary` | string | JSON of request arguments (secrets redacted) |
+| `argsHash` | string | SHA-256 hash of canonicalized args (for replay) |
 | `resultSummary` | string | JSON of execution result (if executed) |
+| `executionReceipt` | object | Timing + resource info for executions |
 | `riskFlags` | string[] | Risk indicators that triggered during evaluation |
+| `reasonCode` | string | Machine-readable decision code |
+| `humanExplanation` | string | Friendly explanation of the decision |
+| `remediation` | string | Suggested remediation (if any) |
 | `policyHash` | string | SHA-256 hash of the policy in effect |
 | `gatekeeperVersion` | string | Gatekeeper version |
 | `approvalId` | string | Approval ID (if approval was involved) |
+| `origin` | string | Request origin (v1 envelope) |
+| `taint` | string[] | Taint labels (v1 envelope) |
+| `contextRefs` | object[] | Context references (v1 envelope) |
 
 ### Decision Values
 
@@ -78,10 +87,14 @@ Each file contains one JSON object per line (JSONL format).
   "actor": {
     "type": "agent",
     "name": "my-agent",
+    "role": "openclaw",
     "runId": "run-123"
   },
   "argsSummary": "{\"url\":\"https://api.example.com/data\",\"method\":\"GET\"}",
+  "argsHash": "sha256:9f6c...c1",
   "riskFlags": [],
+  "reasonCode": "POLICY_ALLOW",
+  "humanExplanation": "Policy allows \"http.request\".",
   "policyHash": "sha256:abc123...",
   "gatekeeperVersion": "0.1.0"
 }
@@ -97,10 +110,14 @@ Each file contains one JSON object per line (JSONL format).
   "decision": "deny",
   "actor": {
     "type": "agent",
-    "name": "my-agent"
+    "name": "my-agent",
+    "role": "openclaw"
   },
   "argsSummary": "{\"command\":\"rm -rf /\"}",
+  "argsHash": "sha256:7ad1...e4",
   "riskFlags": ["pattern_match:rm -rf"],
+  "reasonCode": "TOOL_DENY_PATTERN",
+  "humanExplanation": "Request matches a deny pattern configured for this tool.",
   "policyHash": "sha256:abc123...",
   "gatekeeperVersion": "0.1.0"
 }
@@ -116,10 +133,14 @@ Each file contains one JSON object per line (JSONL format).
   "decision": "approve",
   "actor": {
     "type": "agent",
-    "name": "my-agent"
+    "name": "my-agent",
+    "role": "openclaw"
   },
   "argsSummary": "{\"command\":\"ls -la /tmp\"}",
+  "argsHash": "sha256:22af...19",
   "riskFlags": ["needs_approval"],
+  "reasonCode": "POLICY_APPROVAL_REQUIRED",
+  "humanExplanation": "Policy requires human approval before running \"shell.exec\".",
   "policyHash": "sha256:abc123...",
   "gatekeeperVersion": "0.1.0",
   "approvalId": "550e8400-e29b-41d4-a716-446655440000"
@@ -136,11 +157,14 @@ Each file contains one JSON object per line (JSONL format).
   "decision": "approval_consumed",
   "actor": {
     "type": "agent",
-    "name": "my-agent"
+    "name": "my-agent",
+    "role": "openclaw"
   },
   "argsSummary": "{\"command\":\"ls -la /tmp\"}",
   "resultSummary": "{\"exitCode\":0,\"stdout\":\"total 24\\n...\"}",
   "riskFlags": ["action:approved"],
+  "reasonCode": "APPROVAL_APPROVED",
+  "humanExplanation": "The approval request was approved and executed.",
   "policyHash": "sha256:abc123...",
   "gatekeeperVersion": "0.1.0",
   "approvalId": "550e8400-e29b-41d4-a716-446655440000"
@@ -157,10 +181,16 @@ Each file contains one JSON object per line (JSONL format).
   "decision": "executed",
   "actor": {
     "type": "agent",
-    "name": "my-agent"
+    "name": "my-agent",
+    "role": "openclaw"
   },
   "argsSummary": "{\"command\":\"ls -la /tmp\"}",
   "resultSummary": "{\"exitCode\":0,\"stdout\":\"total 24\\n...\"}",
+  "executionReceipt": {
+    "startedAt": "2024-01-15T10:35:00.900Z",
+    "completedAt": "2024-01-15T10:35:01.020Z",
+    "durationMs": 120
+  },
   "riskFlags": [],
   "policyHash": "sha256:abc123...",
   "gatekeeperVersion": "0.1.0",
@@ -213,6 +243,18 @@ cat data/audit/*.jsonl | jq 'select(.riskFlags | contains(["pattern_match:rm -rf
 ```bash
 cat data/audit/*.jsonl | jq 'select(.requestId == "req-003")'
 ```
+
+---
+
+## Replay a Decision
+
+To replay a decision deterministically, use the replay script with the original args:
+
+```bash
+tsx scripts/replay-policy.ts --log data/audit/2024-01-15.jsonl --request-id req-003 --args /path/to/args.json
+```
+
+The script verifies the `argsHash` and re-evaluates policy using the current `policy.yaml`.
 
 ### Find All Approvals for a Run
 
@@ -331,7 +373,7 @@ done
 ```bash
 # Bulk index to Elasticsearch
 cat data/audit/*.jsonl | jq -c '{index: {_index: "gatekeeper-audit"}}, .' | \
-  curl -X POST localhost:9200/_bulk -H "Content-Type: application/x-ndjson" --data-binary @-
+  curl -X POST 127.0.0.1:9200/_bulk -H "Content-Type: application/x-ndjson" --data-binary @-
 ```
 
 ---

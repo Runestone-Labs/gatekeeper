@@ -47,6 +47,8 @@
     "gatekeeper:safe": "tsx scripts/gatekeeper-demo.ts safe",
     "gatekeeper:record": "vhs scripts/gatekeeper-demo.tape",
     "gatekeeper:render": "bash scripts/render-video.sh",
+    "capability:create": "tsx scripts/create-capability.ts",
+    "replay:policy": "tsx scripts/replay-policy.ts",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio"

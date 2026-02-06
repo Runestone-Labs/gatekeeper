@@ -21,6 +21,21 @@ tools:
 
 Each tool has a `decision` and optional constraints. Unknown tools are denied by default.
 
+You can also add global deny patterns and compose policies:
+
+```yaml
+extends:
+  - ./base-policy.yaml
+
+principals_file: ./principals.yaml
+
+global_deny_patterns:
+  - "token=.+"
+  - "BEGIN\\s+PRIVATE\\s+KEY"
+```
+
+`extends` merges base policies before applying the current file. `principals_file` loads role policies from a separate YAML file.
+
 ---
 
 ## Decision Types
@@ -85,6 +100,28 @@ tools:
       - "/tmp/"
       - "./data/"
 
+    # Allowed commands (only simple commands permitted when set)
+    allowed_commands:
+      - "ls"
+      - "git"
+
+    # Optional sandbox prefix (prepended to every command)
+    # sandbox_command_prefix:
+    #   - "firejail"
+    #   - "--noprofile"
+    #   - "--"
+
+    # Optional user/group to run as (requires privileges)
+    # run_as_uid: 1000
+    # run_as_gid: 1000
+
+    # Optional environment allowlist and overrides
+    # env_allowlist:
+    #   - "PATH"
+    #   - "HOME"
+    # env_overrides:
+    #   NODE_ENV: "production"
+
     # Limits
     max_output_bytes: 1048576   # 1MB
     max_timeout_ms: 30000       # 30 seconds
@@ -93,7 +130,13 @@ tools:
 | Option | Type | Description |
 |--------|------|-------------|
 | `deny_patterns` | string[] | Regex patterns that cause immediate denial |
+| `allowed_commands` | string[] | Allowlist of executable names (simple commands only) |
 | `allowed_cwd_prefixes` | string[] | Allowed working directories (if specified) |
+| `sandbox_command_prefix` | string[] | Prefix command for sandbox wrappers |
+| `run_as_uid` | number | Run commands as a specific UID |
+| `run_as_gid` | number | Run commands as a specific GID |
+| `env_allowlist` | string[] | Environment variables to pass through |
+| `env_overrides` | object | Key/value overrides for env |
 | `max_output_bytes` | number | Maximum stdout/stderr size |
 | `max_timeout_ms` | number | Maximum execution time |
 
@@ -147,6 +190,11 @@ tools:
       - pastebin.com
       - evil.com
 
+    # Allowed domains (exact or suffix match)
+    # allowed_domains:
+    #   - "api.example.com"
+    #   - ".example.org"
+
     # SSRF protection: blocked IP ranges (CIDR notation)
     deny_ip_ranges:
       - "127.0.0.0/8"      # Loopback
@@ -156,15 +204,18 @@ tools:
     # Limits
     timeout_ms: 30000
     max_body_bytes: 1048576
+    max_redirects: 3
 ```
 
 | Option | Type | Description |
 |--------|------|-------------|
 | `allowed_methods` | string[] | HTTP methods that are allowed |
+| `allowed_domains` | string[] | Allowed domains (exact or suffix match) |
 | `deny_domains` | string[] | Domains that are blocked |
 | `deny_ip_ranges` | string[] | IP ranges blocked (SSRF protection) |
 | `timeout_ms` | number | Request timeout |
 | `max_body_bytes` | number | Maximum response body size |
+| `max_redirects` | number | Maximum number of redirects |
 
 ---
 
@@ -317,11 +368,11 @@ Test a request:
 
 ```bash
 # Test shell.exec
-curl -X POST http://localhost:3847/tool/shell.exec \
+curl -X POST http://127.0.0.1:3847/tool/shell.exec \
   -H "Content-Type: application/json" \
   -d '{
     "requestId": "test-1",
-    "actor": {"type": "agent", "name": "test"},
+    "actor": {"type": "agent", "name": "test", "role": "openclaw"},
     "args": {"command": "ls -la"}
   }'
 
@@ -334,7 +385,7 @@ curl -X POST http://localhost:3847/tool/shell.exec \
 ### Using the Live Test Script
 
 ```bash
-GATEKEEPER_URL=http://localhost:3847 npx tsx integrations/live-test.ts
+GATEKEEPER_URL=http://127.0.0.1:3847 npx tsx integrations/live-test.ts
 ```
 
 ---
