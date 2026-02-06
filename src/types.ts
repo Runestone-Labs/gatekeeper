@@ -2,7 +2,7 @@
 export interface Actor {
   type: 'agent' | 'user';
   name: string;
-  role?: string; // v1: explicit role (e.g., 'navigator', 'sentinel')
+  role: string; // v1: explicit role (e.g., 'navigator', 'sentinel')
   runId?: string;
 }
 
@@ -57,6 +57,9 @@ export type Decision = 'allow' | 'approve' | 'deny';
 export interface PolicyEvaluation {
   decision: Decision;
   reason: string;
+  reasonCode: string;
+  humanExplanation: string;
+  remediation?: string;
   riskFlags: string[];
 }
 
@@ -73,6 +76,7 @@ export interface PendingApproval {
   actor: Actor;
   context?: RequestContext;
   requestId: string;
+  idempotencyKey?: string;
   createdAt: string;
   expiresAt: string;
 }
@@ -85,8 +89,13 @@ export interface AuditEntry {
   decision: Decision | 'executed' | 'approval_consumed';
   actor: Actor;
   argsSummary: string;
+  argsHash?: string;
   resultSummary?: string;
+  executionReceipt?: ExecutionReceipt;
   riskFlags: string[];
+  reasonCode?: string;
+  humanExplanation?: string;
+  remediation?: string;
   policyHash: string;
   gatekeeperVersion: string;
   approvalId?: string;
@@ -101,6 +110,7 @@ export interface AuditEntry {
 export interface ToolPolicy {
   decision: Decision;
   deny_patterns?: string[];
+  allowed_commands?: string[];
   allowed_cwd_prefixes?: string[];
   max_output_bytes?: number;
   max_timeout_ms?: number;
@@ -108,16 +118,24 @@ export interface ToolPolicy {
   deny_extensions?: string[];
   max_size_bytes?: number;
   allowed_methods?: string[];
+  allowed_domains?: string[];
   deny_domains?: string[];
   deny_ip_ranges?: string[];
   timeout_ms?: number;
   max_body_bytes?: number;
+  max_redirects?: number;
+  sandbox_command_prefix?: string[];
+  run_as_uid?: number;
+  run_as_gid?: number;
+  env_allowlist?: string[];
+  env_overrides?: Record<string, string>;
 }
 
 // Full policy structure
 export interface Policy {
   tools: Record<string, ToolPolicy>;
   principals?: Record<string, PrincipalPolicy>; // v1: role-based policies
+  global_deny_patterns?: string[];
 }
 
 // v1: Alert budget configuration
@@ -147,7 +165,7 @@ export interface ExecutionReceipt {
 export interface ApprovalRequestDetails {
   approvalId: string;
   expiresAt: string;
-  reason: string;
+  reasonCode: string;
   humanExplanation: string;
   diffView?: string;
   approveUrl?: string;
@@ -165,6 +183,9 @@ export interface DenialDetails {
 export interface ToolCallResponse {
   requestId: string;
   decision: Decision;
+  reasonCode: string;
+  humanExplanation: string;
+  remediation?: string;
 
   // On Allow
   result?: unknown;

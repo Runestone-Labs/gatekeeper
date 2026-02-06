@@ -29,10 +29,10 @@ describe('v1 Envelope Schema', () => {
       expect(result.success).toBe(true);
     });
 
-    it('accepts request without v1 fields (backwards compatible)', () => {
+    it('accepts request without optional v1 fields', () => {
       const result = ToolRequestSchema.safeParse({
         requestId: '550e8400-e29b-41d4-a716-446655440000',
-        actor: { type: 'agent', name: 'test-agent' },
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
         args: { command: 'ls' },
       });
       expect(result.success).toBe(true);
@@ -49,9 +49,18 @@ describe('v1 Envelope Schema', () => {
     it('rejects invalid origin', () => {
       const result = ToolRequestSchema.safeParse({
         requestId: '550e8400-e29b-41d4-a716-446655440000',
-        actor: { type: 'agent', name: 'test-agent' },
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
         args: {},
         origin: 'invalid_origin',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects missing actor role', () => {
+      const result = ToolRequestSchema.safeParse({
+        requestId: '550e8400-e29b-41d4-a716-446655440000',
+        actor: { type: 'agent', name: 'test-agent' },
+        args: { command: 'ls' },
       });
       expect(result.success).toBe(false);
     });
@@ -92,7 +101,7 @@ describe('Taint-aware Policy Evaluation', () => {
   it('allows request without taint', () => {
     const envelope: EvaluationEnvelope = {
       requestId: 'test-123',
-      actor: { type: 'agent', name: 'test' },
+      actor: { type: 'agent', name: 'test', role: 'openclaw' },
       args: { command: 'ls' },
     };
     const result = evaluateTool('shell.exec', { command: 'ls' }, basePolicy, envelope);
@@ -102,7 +111,7 @@ describe('Taint-aware Policy Evaluation', () => {
   it('requires approval for shell.exec with external taint', () => {
     const envelope: EvaluationEnvelope = {
       requestId: 'test-123',
-      actor: { type: 'agent', name: 'test' },
+      actor: { type: 'agent', name: 'test', role: 'openclaw' },
       args: { command: 'ls' },
       taint: ['external'],
     };
@@ -115,9 +124,31 @@ describe('Taint-aware Policy Evaluation', () => {
   it('requires approval for shell.exec with untrusted taint', () => {
     const envelope: EvaluationEnvelope = {
       requestId: 'test-123',
-      actor: { type: 'agent', name: 'test' },
+      actor: { type: 'agent', name: 'test', role: 'openclaw' },
       args: { command: 'ls' },
       taint: ['untrusted'],
+    };
+    const result = evaluateTool('shell.exec', { command: 'ls' }, basePolicy, envelope);
+    expect(result.decision).toBe('approve');
+  });
+
+  it('treats url context refs as external taint', () => {
+    const envelope: EvaluationEnvelope = {
+      requestId: 'test-456',
+      actor: { type: 'agent', name: 'test', role: 'openclaw' },
+      args: { command: 'ls' },
+      contextRefs: [{ type: 'url', id: 'https://example.com' }],
+    };
+    const result = evaluateTool('shell.exec', { command: 'ls' }, basePolicy, envelope);
+    expect(result.decision).toBe('approve');
+  });
+
+  it('treats external_content origin as tainted', () => {
+    const envelope: EvaluationEnvelope = {
+      requestId: 'test-789',
+      actor: { type: 'agent', name: 'test', role: 'openclaw' },
+      args: { command: 'ls' },
+      origin: 'external_content',
     };
     const result = evaluateTool('shell.exec', { command: 'ls' }, basePolicy, envelope);
     expect(result.decision).toBe('approve');
@@ -126,7 +157,7 @@ describe('Taint-aware Policy Evaluation', () => {
   it('denies files.write to system path with external taint', () => {
     const envelope: EvaluationEnvelope = {
       requestId: 'test-123',
-      actor: { type: 'agent', name: 'test' },
+      actor: { type: 'agent', name: 'test', role: 'openclaw' },
       args: { path: '/etc/passwd', content: 'hack' },
       taint: ['external'],
     };
@@ -139,7 +170,7 @@ describe('Taint-aware Policy Evaluation', () => {
   it('requires approval for files.write to non-system path with external taint', () => {
     const envelope: EvaluationEnvelope = {
       requestId: 'test-123',
-      actor: { type: 'agent', name: 'test' },
+      actor: { type: 'agent', name: 'test', role: 'openclaw' },
       args: { path: '/tmp/test.txt', content: 'hello' },
       taint: ['external'],
     };
@@ -151,11 +182,11 @@ describe('Taint-aware Policy Evaluation', () => {
   it('denies http.request to internal host with external taint', () => {
     const envelope: EvaluationEnvelope = {
       requestId: 'test-123',
-      actor: { type: 'agent', name: 'test' },
-      args: { url: 'http://localhost:8080/admin', method: 'GET' },
+      actor: { type: 'agent', name: 'test', role: 'openclaw' },
+      args: { url: 'http://127.0.0.1:8080/admin', method: 'GET' },
       taint: ['external'],
     };
-    const result = evaluateTool('http.request', { url: 'http://localhost:8080/admin', method: 'GET' }, basePolicy, envelope);
+    const result = evaluateTool('http.request', { url: 'http://127.0.0.1:8080/admin', method: 'GET' }, basePolicy, envelope);
     expect(result.decision).toBe('deny');
     expect(result.riskFlags).toContain('internal_host');
   });
@@ -163,7 +194,7 @@ describe('Taint-aware Policy Evaluation', () => {
   it('denies http.request to AWS metadata endpoint with external taint', () => {
     const envelope: EvaluationEnvelope = {
       requestId: 'test-123',
-      actor: { type: 'agent', name: 'test' },
+      actor: { type: 'agent', name: 'test', role: 'openclaw' },
       args: { url: 'http://169.254.169.254/latest/meta-data/', method: 'GET' },
       taint: ['external'],
     };
@@ -175,7 +206,7 @@ describe('Taint-aware Policy Evaluation', () => {
   it('allows http.request to external host with external taint', () => {
     const envelope: EvaluationEnvelope = {
       requestId: 'test-123',
-      actor: { type: 'agent', name: 'test' },
+      actor: { type: 'agent', name: 'test', role: 'openclaw' },
       args: { url: 'https://api.example.com/data', method: 'GET' },
       taint: ['external'],
     };
@@ -274,6 +305,17 @@ describe('Principal/Role Policy Evaluation', () => {
     // Unknown role uses default tool-level policy (allow)
     expect(result.decision).toBe('allow');
   });
+
+  it('denies when actor role is missing', () => {
+    const envelope: EvaluationEnvelope = {
+      requestId: 'test-123',
+      actor: { type: 'agent', name: 'no-role', role: '' },
+      args: { command: 'ls' },
+    };
+    const result = evaluateTool('shell.exec', { command: 'ls' }, policyWithPrincipals, envelope);
+    expect(result.decision).toBe('deny');
+    expect(result.reasonCode).toBe('MISSING_ACTOR_ROLE');
+  });
 });
 
 describe('Principal Utilities', () => {
@@ -314,8 +356,8 @@ describe('Principal Utilities', () => {
       expect(getEffectiveRole({ name: 'agent', role: 'navigator' })).toBe('navigator');
     });
 
-    it('falls back to name when no role', () => {
-      expect(getEffectiveRole({ name: 'agent' })).toBe('agent');
+    it('throws when role is missing', () => {
+      expect(() => getEffectiveRole({ name: 'agent' })).toThrow('Actor role is required');
     });
   });
 
@@ -386,17 +428,17 @@ describe('Backwards Compatibility', () => {
   it('evaluates correctly with empty envelope', () => {
     const envelope: EvaluationEnvelope = {
       requestId: 'test-123',
-      actor: { type: 'agent', name: 'test' },
+      actor: { type: 'agent', name: 'test', role: 'openclaw' },
       args: { command: 'ls' },
     };
     const result = evaluateTool('shell.exec', { command: 'ls' }, policy, envelope);
     expect(result.decision).toBe('allow');
   });
 
-  it('evaluates correctly with envelope but no taint/role', () => {
+  it('evaluates correctly with envelope but no taint', () => {
     const envelope: EvaluationEnvelope = {
       requestId: 'test-123',
-      actor: { type: 'agent', name: 'test' },
+      actor: { type: 'agent', name: 'test', role: 'openclaw' },
       args: { command: 'ls' },
       origin: 'user_direct',
     };

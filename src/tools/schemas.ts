@@ -5,6 +5,7 @@ import {
   MemoryLinkArgsSchema,
   MemoryEpisodeArgsSchema,
   MemoryUnlinkArgsSchema,
+  MemoryEvidenceArgsSchema,
 } from './memory/schemas.js';
 
 /**
@@ -69,7 +70,7 @@ export type Origin = z.infer<typeof OriginSchema>;
 /**
  * Tool request body schema.
  * v1.0: Added role, origin, taint, contextRefs, idempotencyKey, dryRun, capabilityToken
- * All new fields are optional for backwards compatibility.
+ * Role is required for policy enforcement; other v1 fields are optional.
  */
 export const ToolRequestSchema = z
   .object({
@@ -78,7 +79,7 @@ export const ToolRequestSchema = z
       .object({
         type: z.enum(['agent', 'user']),
         name: z.string().min(1),
-        role: z.string().optional(), // v1: explicit role (e.g., 'navigator', 'sentinel')
+        role: z.string().min(1), // v1: explicit role (e.g., 'navigator', 'sentinel')
         runId: z.string().optional(),
       })
       .strict(),
@@ -125,6 +126,8 @@ export function getToolSchema(toolName: string): z.ZodType | null {
       return MemoryEpisodeArgsSchema;
     case 'memory.unlink':
       return MemoryUnlinkArgsSchema;
+    case 'memory.evidence':
+      return MemoryEvidenceArgsSchema;
     default:
       return null;
   }

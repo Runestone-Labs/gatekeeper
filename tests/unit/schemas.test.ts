@@ -6,6 +6,7 @@ import {
   ToolRequestSchema,
   getToolSchema,
 } from '../../src/tools/schemas.js';
+import { MemoryEvidenceArgsSchema } from '../../src/tools/memory/schemas.js';
 
 describe('ShellExecArgsSchema', () => {
   it('accepts valid minimal args', () => {
@@ -171,7 +172,7 @@ describe('ToolRequestSchema', () => {
   it('accepts valid request', () => {
     const result = ToolRequestSchema.safeParse({
       requestId: '550e8400-e29b-41d4-a716-446655440000',
-      actor: { type: 'agent', name: 'test-agent' },
+      actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
       args: { command: 'ls' },
     });
     expect(result.success).toBe(true);
@@ -180,7 +181,7 @@ describe('ToolRequestSchema', () => {
   it('accepts request with full actor and context', () => {
     const result = ToolRequestSchema.safeParse({
       requestId: '550e8400-e29b-41d4-a716-446655440000',
-      actor: { type: 'agent', name: 'test-agent', runId: 'run-123' },
+      actor: { type: 'agent', name: 'test-agent', role: 'openclaw', runId: 'run-123' },
       args: { command: 'ls' },
       context: { conversationId: 'conv-1', traceId: 'trace-1' },
     });
@@ -190,7 +191,7 @@ describe('ToolRequestSchema', () => {
   it('rejects invalid UUID', () => {
     const result = ToolRequestSchema.safeParse({
       requestId: 'not-a-uuid',
-      actor: { type: 'agent', name: 'test-agent' },
+      actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
       args: {},
     });
     expect(result.success).toBe(false);
@@ -199,7 +200,7 @@ describe('ToolRequestSchema', () => {
   it('rejects invalid actor type', () => {
     const result = ToolRequestSchema.safeParse({
       requestId: '550e8400-e29b-41d4-a716-446655440000',
-      actor: { type: 'bot', name: 'test' },
+      actor: { type: 'bot', name: 'test', role: 'openclaw' },
       args: {},
     });
     expect(result.success).toBe(false);
@@ -208,7 +209,7 @@ describe('ToolRequestSchema', () => {
   it('rejects missing actor name', () => {
     const result = ToolRequestSchema.safeParse({
       requestId: '550e8400-e29b-41d4-a716-446655440000',
-      actor: { type: 'agent' },
+      actor: { type: 'agent', role: 'openclaw' },
       args: {},
     });
     expect(result.success).toBe(false);
@@ -217,7 +218,16 @@ describe('ToolRequestSchema', () => {
   it('rejects empty actor name', () => {
     const result = ToolRequestSchema.safeParse({
       requestId: '550e8400-e29b-41d4-a716-446655440000',
-      actor: { type: 'agent', name: '' },
+      actor: { type: 'agent', name: '', role: 'openclaw' },
+      args: {},
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects missing actor role', () => {
+    const result = ToolRequestSchema.safeParse({
+      requestId: '550e8400-e29b-41d4-a716-446655440000',
+      actor: { type: 'agent', name: 'test-agent' },
       args: {},
     });
     expect(result.success).toBe(false);
@@ -235,6 +245,10 @@ describe('getToolSchema', () => {
 
   it('returns schema for http.request', () => {
     expect(getToolSchema('http.request')).toBe(HttpRequestArgsSchema);
+  });
+
+  it('returns schema for memory.evidence', () => {
+    expect(getToolSchema('memory.evidence')).toBe(MemoryEvidenceArgsSchema);
   });
 
   it('returns null for unknown tool', () => {
