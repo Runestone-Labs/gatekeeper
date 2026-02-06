@@ -10,10 +10,16 @@ import {
   cleanupExpiredApprovals,
 } from './approvals/store.js';
 import { registerApprovalRoutes } from './approvals/routes.js';
-import { logToolRequest, logToolExecution } from './audit/logger.js';
-import { redactSecrets } from './utils.js';
+import { logToolRequest, logToolExecution, logApprovalConsumed } from './audit/logger.js';
+import { redactSecrets, canonicalize, computeHash } from './utils.js';
 import { getApprovalProvider, getPolicySource } from './providers/index.js';
 import { initDb, closeDb, checkDbHealth, isDbAvailable } from './db/client.js';
+import {
+  getIdempotencyRecord,
+  createPendingRecord,
+  completeIdempotencyRecord,
+} from './idempotency/store.js';
+import { validateCapabilityToken } from './capabilities/token.js';
 
 const startTime = Date.now();
 
@@ -84,7 +90,18 @@ app.post<{ Params: { toolName: string } }>('/tool/:toolName', async (request, re
     return;
   }
 
-  const { requestId, actor, args, context, origin, taint, contextRefs, dryRun } = bodyResult.data;
+  const {
+    requestId,
+    actor,
+    args,
+    context,
+    origin,
+    taint,
+    contextRefs,
+    dryRun,
+    idempotencyKey: idempotencyKeyInput,
+    capabilityToken,
+  } = bodyResult.data;
 
   // Build full envelope for evaluation
   const envelope = {
@@ -115,9 +132,86 @@ app.post<{ Params: { toolName: string } }>('/tool/:toolName', async (request, re
   }
 
   const argsSummary = redactSecrets(args);
+  const argsHash = computeHash(canonicalize(args));
+  const idempotencyKey = idempotencyKeyInput || requestId;
+
+  const existingRecord = getIdempotencyRecord(idempotencyKey);
+  if (existingRecord) {
+    if (existingRecord.argsHash !== argsHash || existingRecord.toolName !== toolName) {
+      reply.status(409).send({
+        decision: 'deny',
+        requestId,
+        reasonCode: 'IDEMPOTENCY_KEY_CONFLICT',
+        humanExplanation:
+          'This idempotency key has already been used with different tool arguments.',
+        remediation: 'Use a new idempotency key for different requests.',
+        policyVersion: policySource.getHash(),
+      });
+      return;
+    }
+
+    if (existingRecord.status === 'completed' && existingRecord.response) {
+      reply
+        .status(existingRecord.response.statusCode)
+        .send(existingRecord.response.body);
+      return;
+    }
+
+    reply.status(409).send({
+      decision: 'deny',
+      requestId,
+      reasonCode: 'IDEMPOTENCY_IN_PROGRESS',
+      humanExplanation: 'A request with this idempotency key is already in progress.',
+      remediation: 'Retry this request after it completes.',
+      policyVersion: policySource.getHash(),
+    });
+    return;
+  }
+
+  createPendingRecord({
+    key: idempotencyKey,
+    requestId,
+    toolName,
+    argsHash,
+  });
 
   // Evaluate against policy (pass full envelope for v1 features)
-  const evaluation = evaluateTool(toolName, args, policy, envelope);
+  let evaluation = evaluateTool(toolName, args, policy, envelope);
+
+  if (capabilityToken) {
+    const capabilityResult = validateCapabilityToken({
+      token: capabilityToken,
+      toolName,
+      argsHash,
+      actorRole: actor.role,
+      actorName: actor.name,
+    });
+
+    if (capabilityResult.valid && evaluation.decision === 'approve') {
+      evaluation = {
+        ...evaluation,
+        decision: 'allow',
+        reason: 'Capability token allows this request',
+        reasonCode: 'CAPABILITY_TOKEN_ALLOW',
+        humanExplanation: 'Capability token authorizes this request without manual approval.',
+        remediation: undefined,
+        riskFlags: [...evaluation.riskFlags, 'capability_token'],
+      };
+    } else if (!capabilityResult.valid) {
+      evaluation = {
+        ...evaluation,
+        riskFlags: [
+          ...evaluation.riskFlags,
+          `capability_token_invalid:${capabilityResult.reasonCode}`,
+        ],
+      };
+    } else if (capabilityResult.valid) {
+      evaluation = {
+        ...evaluation,
+        riskFlags: [...evaluation.riskFlags, 'capability_token'],
+      };
+    }
+  }
 
   // Log the request (include v1 envelope fields)
   logToolRequest({
@@ -126,7 +220,11 @@ app.post<{ Params: { toolName: string } }>('/tool/:toolName', async (request, re
     decision: evaluation.decision,
     actor,
     argsSummary,
+    argsHash,
     riskFlags: evaluation.riskFlags,
+    reasonCode: evaluation.reasonCode,
+    humanExplanation: evaluation.humanExplanation,
+    remediation: evaluation.remediation,
     origin,
     taint,
     contextRefs,
@@ -136,11 +234,28 @@ app.post<{ Params: { toolName: string } }>('/tool/:toolName', async (request, re
   if (dryRun) {
     reply.status(200).send({
       decision: evaluation.decision,
-      reason: evaluation.reason,
       requestId,
+      reasonCode: evaluation.reasonCode,
+      humanExplanation: evaluation.humanExplanation,
+      remediation: evaluation.remediation,
       dryRun: true,
       riskFlags: evaluation.riskFlags,
       policyVersion: policySource.getHash(),
+      idempotencyKey,
+    });
+    completeIdempotencyRecord(idempotencyKey, {
+      statusCode: 200,
+      body: {
+        decision: evaluation.decision,
+        requestId,
+        reasonCode: evaluation.reasonCode,
+        humanExplanation: evaluation.humanExplanation,
+        remediation: evaluation.remediation,
+        dryRun: true,
+        riskFlags: evaluation.riskFlags,
+        policyVersion: policySource.getHash(),
+        idempotencyKey,
+      },
     });
     return;
   }
@@ -148,11 +263,22 @@ app.post<{ Params: { toolName: string } }>('/tool/:toolName', async (request, re
   // Handle decision
   switch (evaluation.decision) {
     case 'deny': {
-      reply.status(403).send({
+      const responseBody = {
         decision: 'deny',
-        reason: evaluation.reason,
         requestId,
-      });
+        reasonCode: evaluation.reasonCode,
+        humanExplanation: evaluation.humanExplanation,
+        remediation: evaluation.remediation,
+        denial: {
+          reasonCode: evaluation.reasonCode,
+          humanExplanation: evaluation.humanExplanation,
+          remediation: evaluation.remediation,
+        },
+        policyVersion: policySource.getHash(),
+        idempotencyKey,
+      };
+      reply.status(403).send(responseBody);
+      completeIdempotencyRecord(idempotencyKey, { statusCode: 403, body: responseBody });
       return;
     }
 
@@ -164,6 +290,7 @@ app.post<{ Params: { toolName: string } }>('/tool/:toolName', async (request, re
         actor,
         context,
         requestId,
+        idempotencyKey,
       });
 
       // Send notification via approval provider (don't block on failure)
@@ -174,27 +301,50 @@ app.post<{ Params: { toolName: string } }>('/tool/:toolName', async (request, re
       // Build response - include URLs in demo mode for programmatic approval
       const response: Record<string, unknown> = {
         decision: 'approve',
-        reason: evaluation.reason,
         requestId,
         approvalId: approval.id,
         expiresAt: approval.expiresAt,
+        reasonCode: evaluation.reasonCode,
+        humanExplanation: evaluation.humanExplanation,
+        remediation: evaluation.remediation,
+        approvalRequest: {
+          approvalId: approval.id,
+          expiresAt: approval.expiresAt,
+          reasonCode: evaluation.reasonCode,
+          humanExplanation: evaluation.humanExplanation,
+          remediation: evaluation.remediation,
+        },
         message: `Approval required. Check ${approvalProvider.name} for approval links.`,
+        policyVersion: policySource.getHash(),
+        idempotencyKey,
       };
 
       // DEMO_MODE: Include signed URLs for programmatic testing
       if (config.demoMode) {
         response.approveUrl = approveUrl;
         response.denyUrl = denyUrl;
+        if (response.approvalRequest && typeof response.approvalRequest === 'object') {
+          (response.approvalRequest as Record<string, unknown>).approveUrl = approveUrl;
+          (response.approvalRequest as Record<string, unknown>).denyUrl = denyUrl;
+        }
       }
 
       reply.status(202).send(response);
+      completeIdempotencyRecord(idempotencyKey, { statusCode: 202, body: response });
       return;
     }
 
     case 'allow': {
       // Execute tool immediately
       const toolPolicy = policy.tools[toolName];
+      const startedAt = new Date();
       const result = await executeTool(toolName, args, toolPolicy);
+      const completedAt = new Date();
+      const executionReceipt = {
+        startedAt: startedAt.toISOString(),
+        completedAt: completedAt.toISOString(),
+        durationMs: completedAt.getTime() - startedAt.getTime(),
+      };
 
       const resultSummary = redactSecrets(result);
 
@@ -204,17 +354,27 @@ app.post<{ Params: { toolName: string } }>('/tool/:toolName', async (request, re
         tool: toolName,
         actor,
         argsSummary,
+        argsHash,
         resultSummary,
         riskFlags: evaluation.riskFlags,
+        executionReceipt,
       });
 
-      reply.status(200).send({
+      const responseBody = {
         decision: 'allow',
         requestId,
         success: result.success,
         result: result.output,
         error: result.error,
-      });
+        reasonCode: evaluation.reasonCode,
+        humanExplanation: evaluation.humanExplanation,
+        remediation: evaluation.remediation,
+        executionReceipt,
+        policyVersion: policySource.getHash(),
+        idempotencyKey,
+      };
+      reply.status(200).send(responseBody);
+      completeIdempotencyRecord(idempotencyKey, { statusCode: 200, body: responseBody });
       return;
     }
   }
@@ -226,7 +386,24 @@ registerApprovalRoutes(app);
 // Periodic cleanup of expired approvals (every 5 minutes)
 setInterval(
   () => {
-    cleanupExpiredApprovals();
+    const expired = cleanupExpiredApprovals();
+    for (const approval of expired) {
+      const argsSummary = redactSecrets(approval.args);
+      const argsHash = computeHash(canonicalize(approval.args));
+      logApprovalConsumed({
+        requestId: approval.requestId,
+        tool: approval.toolName,
+        actor: approval.actor,
+        argsSummary,
+        argsHash,
+        approvalId: approval.id,
+        action: 'denied',
+        resultSummary: 'Approval expired',
+        reasonCode: 'APPROVAL_EXPIRED',
+        humanExplanation: 'The approval request expired and defaulted to deny.',
+        remediation: 'Resubmit the request to generate a new approval.',
+      });
+    }
   },
   5 * 60 * 1000
 );
@@ -244,9 +421,9 @@ process.on('SIGINT', shutdown);
 
 // Start server
 try {
-  await app.listen({ port: config.port, host: '0.0.0.0' });
-  console.log(`Gatekeeper running on http://localhost:${config.port}`);
-  console.log(`Health check: http://localhost:${config.port}/health`);
+  await app.listen({ port: config.port, host: config.host });
+  console.log(`Gatekeeper running on ${config.baseUrl}`);
+  console.log(`Health check: ${config.baseUrl}/health`);
 } catch (err) {
   console.error('Failed to start server:', err);
   process.exit(1);

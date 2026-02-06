@@ -22,7 +22,8 @@ export type PolicySourceType = 'yaml' | 'runestone';
 export const config = {
   // Server
   port: parseInt(process.env.GATEKEEPER_PORT || '3847', 10),
-  baseUrl: process.env.BASE_URL || 'http://localhost:3847',
+  host: process.env.GATEKEEPER_HOST || '127.0.0.1',
+  baseUrl: process.env.BASE_URL || 'http://127.0.0.1:3847',
 
   // Security
   secret: process.env.GATEKEEPER_SECRET || '',
@@ -62,6 +63,9 @@ export const config = {
   },
   get auditDir() {
     return join(this.dataDir, 'audit');
+  },
+  get idempotencyDir() {
+    return join(this.dataDir, 'idempotency');
   },
 };
 

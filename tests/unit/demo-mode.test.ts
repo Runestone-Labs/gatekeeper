@@ -17,7 +17,7 @@ async function buildApp(demoMode: boolean): Promise<FastifyInstance> {
   // Mock config with demo mode setting
   const mockConfig = {
     demoMode,
-    baseUrl: 'http://localhost:3847',
+    baseUrl: 'http://127.0.0.1:3847',
     secret: 'test-secret-key-at-least-32-characters-long',
     approvalExpiryMs: 60 * 60 * 1000,
     approvalsDir: join(TEST_DATA_DIR, 'approvals'),
@@ -68,10 +68,20 @@ async function buildApp(demoMode: boolean): Promise<FastifyInstance> {
 
       const response: Record<string, unknown> = {
         decision: 'approve',
-        reason: evaluation.reason,
         requestId,
         approvalId: approval.id,
         expiresAt: approval.expiresAt,
+        reasonCode: evaluation.reasonCode,
+        humanExplanation: evaluation.humanExplanation,
+        remediation: evaluation.remediation,
+        approvalRequest: {
+          approvalId: approval.id,
+          expiresAt: approval.expiresAt,
+          reasonCode: evaluation.reasonCode,
+          humanExplanation: evaluation.humanExplanation,
+          remediation: evaluation.remediation,
+        },
+        policyVersion: policySource.getHash(),
       };
 
       // Demo mode includes URLs
@@ -83,7 +93,20 @@ async function buildApp(demoMode: boolean): Promise<FastifyInstance> {
       return reply.status(202).send(response);
     }
 
-    return reply.status(403).send({ decision: 'deny', reason: evaluation.reason });
+    return reply
+      .status(403)
+      .send({
+        decision: 'deny',
+        reasonCode: evaluation.reasonCode,
+        humanExplanation: evaluation.humanExplanation,
+        remediation: evaluation.remediation,
+        denial: {
+          reasonCode: evaluation.reasonCode,
+          humanExplanation: evaluation.humanExplanation,
+          remediation: evaluation.remediation,
+        },
+        policyVersion: policySource.getHash(),
+      });
   });
 
   return app;
@@ -119,7 +142,7 @@ describe('DEMO_MODE behavior', () => {
         url: '/tool/shell.exec',
         payload: {
           requestId: '550e8400-e29b-41d4-a716-446655440000',
-          actor: { type: 'agent', name: 'test-agent' },
+          actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
           args: { command: 'ls -la' },
         },
       });
@@ -138,7 +161,7 @@ describe('DEMO_MODE behavior', () => {
         url: '/tool/shell.exec',
         payload: {
           requestId: '550e8400-e29b-41d4-a716-446655440001',
-          actor: { type: 'agent', name: 'test-agent' },
+          actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
           args: { command: 'ls -la' },
         },
       });
@@ -156,7 +179,7 @@ describe('DEMO_MODE behavior', () => {
         url: '/tool/shell.exec',
         payload: {
           requestId: '550e8400-e29b-41d4-a716-446655440002',
-          actor: { type: 'agent', name: 'test-agent' },
+          actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
           args: { command: 'ls -la' },
         },
       });
@@ -190,7 +213,7 @@ describe('DEMO_MODE behavior', () => {
         url: '/tool/shell.exec',
         payload: {
           requestId: '550e8400-e29b-41d4-a716-446655440003',
-          actor: { type: 'agent', name: 'test-agent' },
+          actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
           args: { command: 'ls -la' },
         },
       });
@@ -207,7 +230,7 @@ describe('DEMO_MODE behavior', () => {
         url: '/tool/shell.exec',
         payload: {
           requestId: '550e8400-e29b-41d4-a716-446655440004',
-          actor: { type: 'agent', name: 'test-agent' },
+          actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
           args: { command: 'ls -la' },
         },
       });
@@ -223,7 +246,7 @@ describe('DEMO_MODE behavior', () => {
         url: '/tool/shell.exec',
         payload: {
           requestId: '550e8400-e29b-41d4-a716-446655440005',
-          actor: { type: 'agent', name: 'test-agent' },
+          actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
           args: { command: 'ls -la' },
         },
       });

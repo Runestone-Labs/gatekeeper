@@ -13,7 +13,7 @@ import { config } from '../config.js';
  * - Approval audit history
  *
  * Configure with:
- *   RUNESTONE_API_URL=http://localhost:3848
+ *   RUNESTONE_API_URL=http://127.0.0.1:3848
  *   RUNESTONE_API_KEY=your-api-key (optional for dev)
  */
 export class RunestoneCloudApproval implements ApprovalProvider {
