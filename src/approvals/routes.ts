@@ -70,7 +70,7 @@ export function registerApprovalRoutes(app: FastifyInstance): void {
 }
 
 async function handleApprovalAction(
-  request: FastifyRequest<{ Params: ApprovalParams; Querystring: ApprovalQuery }>,
+  request: FastifyRequest<{ Params: ApprovalParams }>,
   reply: FastifyReply,
   action: 'approve' | 'deny'
 ): Promise<void> {
