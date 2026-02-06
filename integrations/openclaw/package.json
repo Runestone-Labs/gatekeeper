@@ -39,6 +39,14 @@
     "url": "https://github.com/Runestone-Labs/gatekeeper.git",
     "directory": "integrations/openclaw"
   },
+  "scripts": {
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "vitest": "^4.0.18"
+  },
   "peerDependencies": {
     "openclaw": ">=2026.1.0"
   },

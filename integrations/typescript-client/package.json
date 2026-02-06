@@ -1,6 +1,6 @@
 {
   "name": "@runestone/gatekeeper-client",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "TypeScript client for Runestone Gatekeeper - policy enforcement for AI agent tools",
   "type": "module",
   "main": "dist/index.js",
@@ -18,7 +18,13 @@
   },
   "scripts": {
     "build": "tsc",
+    "test": "vitest",
+    "test:run": "vitest run",
     "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "vitest": "^4.0.18"
   },
   "engines": {
     "node": ">=18.0.0"

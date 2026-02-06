@@ -43,7 +43,7 @@ import type {
 export class GatekeeperClient {
   private readonly baseUrl: string;
   private readonly agentName: string;
-  private readonly agentRole: string;
+  private readonly agentRole: string | undefined;
   private readonly runId?: string;
 
   constructor(config: GatekeeperConfig | string) {
@@ -80,16 +80,17 @@ export class GatekeeperClient {
   ): Promise<GatekeeperResult<T>> {
     const requestId = crypto.randomUUID();
 
+    const role = options?.actor?.role || this.agentRole;
+    if (!role) {
+      throw new Error('Actor role is required. Set agentRole in config or GATEKEEPER_ROLE env var.');
+    }
+
     const actor: Actor = {
       type: 'agent',
       name: this.agentName,
-      role: this.agentRole,
+      role,
       ...options?.actor,
     };
-
-    if (!actor.role) {
-      throw new Error('Actor role is required');
-    }
 
     if (this.runId && !actor.runId) {
       actor.runId = this.runId;
