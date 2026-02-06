@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-02-06
+
+### Added
+
+- **v1 Tool Call Envelope** - Request protocol with origin tracking, taint labels, and context references
+  - `origin` field: `user_direct`, `model_inferred`, `external_content`, `background_job`
+  - `taint` labels for tracking untrusted data provenance
+  - `contextRefs` for linking requests to triggering messages, URLs, or documents
+- **Principal-based policies** - Role-scoped policy evaluation
+  - Per-role tool decisions and deny patterns via `principals.yaml`
+  - Policy composition with `extends` and `principals_file` directives
+  - Taint-aware evaluation (deny tainted requests for sensitive tools)
+- **Capability tokens** - Pre-authorized tool execution without manual approval
+  - HMAC-SHA256 signed tokens scoped to tool + args hash
+  - Optional actor/role constraints and expiry enforcement
+  - CLI: `npm run capability:create`
+- **Idempotency** - Safe retries with file-backed deduplication
+  - Key-based deduplication with args hash verification
+  - Response caching for deterministic replay
+- **Memory tools** - `memory.evidence` for attaching provenance sources, `memory.unlink` for removing relationships, full-text entity search
+- **Tool hardening**
+  - SSRF: IP re-validation after redirects, DNS rebinding defenses
+  - Files: path resolution with symlink protection
+  - Shell: expanded constraints and output limits
+- **Policy replay** - `npm run replay:policy` replays audit log entries against current policy
+- **Dry-run mode** - Evaluate policy without executing tools
+
+### Changed
+
+- Approval routes accept both GET (signed URLs) and POST (secret-authenticated) for approve/deny
+- Audit entries now include v1 envelope fields (origin, taint, contextRefs)
+- TypeScript client and OpenClaw plugin updated for v1 request format
+- All documentation guides expanded with v1 features
+
+### Fixed
+
+- Approval route type signature accepts both query and body parameters
+
 ## [0.2.0] - 2026-02-03
 
 ### Added
@@ -78,6 +116,7 @@ Initial public release.
 - SSRF protection blocks access to private IP ranges
 - Secrets are redacted from audit logs
 
-[Unreleased]: https://github.com/Runestone-Labs/gatekeeper/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Runestone-Labs/gatekeeper/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Runestone-Labs/gatekeeper/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Runestone-Labs/gatekeeper/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Runestone-Labs/gatekeeper/releases/tag/v0.1.0
