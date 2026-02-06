@@ -21,7 +21,8 @@ interface GatekeeperResponse {
   decision: 'allow' | 'approve' | 'deny';
   requestId: string;
   result?: unknown;
-  reason?: string;
+  reasonCode?: string;
+  humanExplanation?: string;
   approvalId?: string;
   expiresAt?: string;
 }
@@ -37,11 +38,12 @@ async function executeToolViaGatekeeper(
   options: {
     gatekeeperUrl: string;
     agentName: string;
+    role: string;
     runId: string;
     onApprovalRequired?: (approvalId: string, expiresAt: string) => void;
   }
 ): Promise<{ success: boolean; result?: unknown; error?: string }> {
-  const { gatekeeperUrl, agentName, runId, onApprovalRequired } = options;
+  const { gatekeeperUrl, agentName, role, runId, onApprovalRequired } = options;
 
   const response = await fetch(`${gatekeeperUrl}/tool/${toolCall.tool}`, {
     method: 'POST',
@@ -51,6 +53,7 @@ async function executeToolViaGatekeeper(
       actor: {
         type: 'agent',
         name: agentName,
+        role,
         runId,
       },
       args: toolCall.args,
@@ -75,14 +78,14 @@ async function executeToolViaGatekeeper(
       }
       return {
         success: false,
-        error: `Approval required: ${data.reason}`,
+        error: `Approval required: ${data.humanExplanation}`,
       };
 
     case 'deny':
       // Action blocked by policy
       return {
         success: false,
-        error: `Denied: ${data.reason}`,
+        error: `Denied: ${data.humanExplanation}`,
       };
 
     default:
@@ -108,6 +111,7 @@ const result = await executeToolViaGatekeeper(
   {
     gatekeeperUrl: 'http://127.0.0.1:3847',
     agentName: 'my-agent',
+    role: 'openclaw',
     runId: 'run-123',
     onApprovalRequired: (approvalId, expiresAt) => {
       console.log(`Waiting for approval: ${approvalId}`);
