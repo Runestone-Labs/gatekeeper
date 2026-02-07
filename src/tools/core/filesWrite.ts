@@ -1,8 +1,8 @@
 import { writeFileSync, mkdirSync, existsSync, realpathSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { ToolResult, ToolPolicy } from '../types.js';
-import { FilesWriteArgs } from './schemas.js';
-import { isPathWithin, resolvePath } from '../utils.js';
+import { ToolResult, ToolPolicy } from '../../types.js';
+import { FilesWriteArgs } from '../schemas.js';
+import { isPathWithin, resolvePath } from '../../utils.js';
 
 /**
  * Write content to a file.

@@ -3,7 +3,7 @@ import cors from '@fastify/cors';
 import { config, validateConfig } from './config.js';
 import { evaluateTool } from './policy/evaluate.js';
 import { executeTool, validateToolArgs, toolExists } from './tools/index.js';
-import { ToolRequestSchema } from './tools/schemas.js';
+import { ToolRequestSchema, initToolSchemas } from './tools/schemas.js';
 import {
   createApproval,
   countPendingApprovals,
@@ -29,6 +29,9 @@ validateConfig();
 // Initialize database (optional - memory tools disabled if DATABASE_URL not set)
 initDb();
 
+// Initialize tool schemas (loads memory schemas if memory module is enabled)
+await initToolSchemas();
+
 // Get providers
 const policySource = getPolicySource();
 const approvalProvider = getApprovalProvider();
@@ -40,6 +43,7 @@ console.log(`Policy hash: ${policySource.getHash()}`);
 console.log(`Available tools: ${Object.keys(policy.tools).join(', ')}`);
 console.log(`Approval provider: ${approvalProvider.name}`);
 console.log(`Database: ${isDbAvailable() ? 'connected' : 'not configured'}`);
+console.log(`Memory module: ${config.enableMemory ? 'enabled' : 'disabled'}`);
 
 // Create Fastify instance
 const app = Fastify({
@@ -71,6 +75,9 @@ app.get('/health', async () => {
       healthy: dbHealth.ok,
       latencyMs: dbHealth.latencyMs,
     },
+    memory: {
+      enabled: config.enableMemory,
+    },
   };
 });
 
@@ -91,7 +98,7 @@ app.get('/audit', async (request, reply) => {
 
   try {
     const { desc, and, gte, lte, eq } = await import('drizzle-orm');
-    const { auditLogs } = await import('./db/schema.js');
+    const { auditLogs } = await import('./db/schema/index.js');
     const db = (await import('./db/client.js')).getDb();
 
     const conditions = [];

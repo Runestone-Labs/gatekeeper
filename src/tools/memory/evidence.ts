@@ -1,5 +1,5 @@
 import { getDb, isDbAvailable } from '../../db/client.js';
-import { evidence, evidenceLinks } from '../../db/schema.js';
+import { evidence, evidenceLinks } from '../../db/schema/index.js';
 import type { MemoryEvidenceArgs } from './schemas.js';
 import type { ToolResult } from '../../types.js';
 

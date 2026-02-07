@@ -317,6 +317,14 @@ Response:
   "providers": {
     "approval": "local",
     "policy": "yaml"
+  },
+  "database": {
+    "available": true,
+    "healthy": true,
+    "latencyMs": 2
+  },
+  "memory": {
+    "enabled": true
   }
 }
 ```
@@ -456,9 +464,38 @@ npm run dev
 npm start
 ```
 
-## Memory System (Optional)
+## Memory Module (Optional)
 
-When `DATABASE_URL` is configured with PostgreSQL + Apache AGE, Gatekeeper provides graph-based memory tools:
+The memory module provides graph-based knowledge storage (entities, episodes, evidence) via PostgreSQL + Apache AGE. It is an **optional module** — Gatekeeper works as a standalone policy engine without it.
+
+**Without a database**: Only core tools (`shell.exec`, `files.write`, `http.request`) are registered. Policy enforcement, approvals, and JSONL audit logging work normally.
+
+**With a database**: Memory tools are additionally registered, providing a knowledge graph for AI assistants.
+
+### Configuration
+
+```bash
+# Set DATABASE_URL to enable the memory module
+export DATABASE_URL="postgresql://user:pass@localhost:5432/memory"
+
+# Or explicitly control (overrides DATABASE_URL detection)
+export ENABLE_MEMORY=true   # or false to disable even with a DATABASE_URL
+```
+
+### Database Setup
+
+```bash
+# Generate migration SQL from schema changes
+npm run db:generate
+
+# Apply migrations to a running database
+npm run db:migrate
+
+# Or push schema directly (dev only)
+npm run db:push
+```
+
+### Memory Tools
 
 | Tool | Description |
 |------|-------------|
@@ -480,6 +517,14 @@ curl -X POST http://127.0.0.1:3847/tool/memory.link \
   -H "Content-Type: application/json" \
   -d '{"requestId":"...","actor":{"type":"agent","name":"test","role":"openclaw"},"args":{"sourceId":"<id1>","targetId":"<id2>","relation":"knows"}}'
 ```
+
+### Schema Architecture
+
+The database schema is split into two modules:
+- **`src/db/schema/audit.ts`** — Audit logs table (core gatekeeper, always available)
+- **`src/db/schema/memory.ts`** — Knowledge graph tables: entities, episodes, evidence (optional module)
+
+The KG schema is a generic entity/episode/evidence model. Application-specific ontology (entity types, facet types, edge relations) is defined by the consuming application, not by gatekeeper.
 
 See [docs/MEMORY.md](docs/MEMORY.md) for setup and full API reference.
 

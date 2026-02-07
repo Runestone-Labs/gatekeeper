@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { getDb, isDbAvailable } from '../../db/client.js';
-import { entities } from '../../db/schema.js';
+import { entities } from '../../db/schema/index.js';
 import type { MemoryUpsertArgs } from './schemas.js';
 import type { ToolResult } from '../../types.js';
 

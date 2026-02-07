@@ -1,6 +1,6 @@
 import { eq, and, gte, sql } from 'drizzle-orm';
 import { getDb, ageQuery, rawQuery, isDbAvailable } from '../../db/client.js';
-import { entities, episodes } from '../../db/schema.js';
+import { entities, episodes } from '../../db/schema/index.js';
 import type { MemoryQueryArgs } from './schemas.js';
 import type { ToolResult } from '../../types.js';
 

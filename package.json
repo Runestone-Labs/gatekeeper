@@ -50,6 +50,7 @@
     "capability:create": "tsx scripts/create-capability.ts",
     "replay:policy": "tsx scripts/replay-policy.ts",
     "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx scripts/migrate.ts",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio"
   },

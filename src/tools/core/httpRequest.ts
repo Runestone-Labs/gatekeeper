@@ -1,8 +1,8 @@
 import { promises as dns } from 'node:dns';
 import net from 'node:net';
-import { ToolResult, ToolPolicy } from '../types.js';
-import { HttpRequestArgs } from './schemas.js';
-import { isPrivateIP, ipInCIDR, truncate } from '../utils.js';
+import { ToolResult, ToolPolicy } from '../../types.js';
+import { HttpRequestArgs } from '../schemas.js';
+import { isPrivateIP, ipInCIDR, truncate } from '../../utils.js';
 
 // Default limits
 const DEFAULT_TIMEOUT_MS = 30000;

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { entityTypes } from '../../db/schema.js';
+import { entityTypes } from '../../db/schema/index.js';
 
 /**
  * memory.query - Query entities and relationships

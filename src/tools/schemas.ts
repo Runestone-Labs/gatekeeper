@@ -1,12 +1,5 @@
 import { z } from 'zod';
-import {
-  MemoryQueryArgsSchema,
-  MemoryUpsertArgsSchema,
-  MemoryLinkArgsSchema,
-  MemoryEpisodeArgsSchema,
-  MemoryUnlinkArgsSchema,
-  MemoryEvidenceArgsSchema,
-} from './memory/schemas.js';
+import { config } from '../config.js';
 
 /**
  * Zod schemas for tool arguments.
@@ -105,30 +98,53 @@ export const ToolRequestSchema = z
 
 export type ToolRequestBody = z.infer<typeof ToolRequestSchema>;
 
+// Lazily loaded memory schemas (only when memory module is enabled)
+let memorySchemas: Record<string, z.ZodType> | null = null;
+
+async function getMemorySchemas(): Promise<Record<string, z.ZodType>> {
+  if (!memorySchemas) {
+    const {
+      MemoryQueryArgsSchema,
+      MemoryUpsertArgsSchema,
+      MemoryLinkArgsSchema,
+      MemoryEpisodeArgsSchema,
+      MemoryUnlinkArgsSchema,
+      MemoryEvidenceArgsSchema,
+    } = await import('./memory/schemas.js');
+
+    memorySchemas = {
+      'memory.query': MemoryQueryArgsSchema,
+      'memory.upsert': MemoryUpsertArgsSchema,
+      'memory.link': MemoryLinkArgsSchema,
+      'memory.episode': MemoryEpisodeArgsSchema,
+      'memory.unlink': MemoryUnlinkArgsSchema,
+      'memory.evidence': MemoryEvidenceArgsSchema,
+    };
+  }
+  return memorySchemas;
+}
+
+// Core schemas (always available)
+const coreSchemas: Record<string, z.ZodType> = {
+  'shell.exec': ShellExecArgsSchema,
+  'files.write': FilesWriteArgsSchema,
+  'http.request': HttpRequestArgsSchema,
+};
+
 /**
  * Get the schema for a specific tool.
  */
 export function getToolSchema(toolName: string): z.ZodType | null {
-  switch (toolName) {
-    case 'shell.exec':
-      return ShellExecArgsSchema;
-    case 'files.write':
-      return FilesWriteArgsSchema;
-    case 'http.request':
-      return HttpRequestArgsSchema;
-    case 'memory.query':
-      return MemoryQueryArgsSchema;
-    case 'memory.upsert':
-      return MemoryUpsertArgsSchema;
-    case 'memory.link':
-      return MemoryLinkArgsSchema;
-    case 'memory.episode':
-      return MemoryEpisodeArgsSchema;
-    case 'memory.unlink':
-      return MemoryUnlinkArgsSchema;
-    case 'memory.evidence':
-      return MemoryEvidenceArgsSchema;
-    default:
-      return null;
+  return coreSchemas[toolName] ?? null;
+}
+
+/**
+ * Initialize memory schemas if memory module is enabled.
+ * Must be called at startup before handling requests.
+ */
+export async function initToolSchemas(): Promise<void> {
+  if (config.enableMemory) {
+    const schemas = await getMemorySchemas();
+    Object.assign(coreSchemas, schemas);
   }
 }

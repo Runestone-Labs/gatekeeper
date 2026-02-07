@@ -1,7 +1,7 @@
 import { exec, ExecException } from 'node:child_process';
-import { ToolResult, ToolPolicy } from '../types.js';
-import { ShellExecArgs } from './schemas.js';
-import { truncate } from '../utils.js';
+import { ToolResult, ToolPolicy } from '../../types.js';
+import { ShellExecArgs } from '../schemas.js';
+import { truncate } from '../../utils.js';
 
 // Default limits
 const DEFAULT_TIMEOUT_MS = 30000;

@@ -56,7 +56,7 @@ describe('SSRF redirect protection', () => {
 
   async function runHttpRequest(args: { url: string; method: string; body?: string }) {
     // Re-import to get mocked dependencies
-    const { executeHttpRequest } = await import('../../src/tools/httpRequest.js');
+    const { executeHttpRequest } = await import('../../src/tools/core/httpRequest.js');
     return executeHttpRequest(args, policy);
   }
 

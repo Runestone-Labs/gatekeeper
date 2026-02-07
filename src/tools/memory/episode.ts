@@ -1,5 +1,5 @@
 import { getDb, isDbAvailable } from '../../db/client.js';
-import { episodes, episodeEntities } from '../../db/schema.js';
+import { episodes, episodeEntities } from '../../db/schema/index.js';
 import type { MemoryEpisodeArgs } from './schemas.js';
 import type { ToolResult } from '../../types.js';
 

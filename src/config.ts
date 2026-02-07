@@ -36,6 +36,11 @@ export const config = {
   // Database (for MemoryGraph)
   databaseUrl: process.env.DATABASE_URL || '',
 
+  // Memory module (optional — requires DATABASE_URL)
+  enableMemory: process.env.ENABLE_MEMORY
+    ? process.env.ENABLE_MEMORY === 'true'
+    : !!process.env.DATABASE_URL,
+
   // Slack
   slackWebhookUrl: process.env.SLACK_WEBHOOK_URL || '',
 

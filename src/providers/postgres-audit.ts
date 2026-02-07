@@ -1,7 +1,7 @@
 import { AuditEntry } from '../types.js';
 import { AuditSink } from './types.js';
 import { getDb, isDbAvailable } from '../db/client.js';
-import { auditLogs } from '../db/schema.js';
+import { auditLogs } from '../db/schema/index.js';
 
 /**
  * PostgreSQL audit sink - writes audit entries to the audit_logs table.

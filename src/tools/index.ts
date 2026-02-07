@@ -1,16 +1,9 @@
 import { ToolResult, ToolPolicy } from '../types.js';
 import { getToolSchema } from './schemas.js';
-import { executeShellExec } from './shellExec.js';
-import { executeFilesWrite } from './filesWrite.js';
-import { executeHttpRequest } from './httpRequest.js';
-import {
-  executeMemoryQuery,
-  executeMemoryUpsert,
-  executeMemoryLink,
-  executeMemoryEpisode,
-  executeMemoryUnlink,
-  executeMemoryEvidence,
-} from './memory/index.js';
+import { executeShellExec } from './core/shellExec.js';
+import { executeFilesWrite } from './core/filesWrite.js';
+import { executeHttpRequest } from './core/httpRequest.js';
+import { config } from '../config.js';
 
 /**
  * Tool registry and executor.
@@ -23,6 +16,7 @@ interface Tool<T> {
   execute: ToolExecutor<T>;
 }
 
+// Core tools (always registered)
 const tools: Record<string, Tool<unknown>> = {
   'shell.exec': {
     name: 'shell.exec',
@@ -36,31 +30,44 @@ const tools: Record<string, Tool<unknown>> = {
     name: 'http.request',
     execute: executeHttpRequest as ToolExecutor<unknown>,
   },
-  'memory.query': {
+};
+
+// Memory tools (only when memory module is enabled)
+if (config.enableMemory) {
+  const {
+    executeMemoryQuery,
+    executeMemoryUpsert,
+    executeMemoryLink,
+    executeMemoryEpisode,
+    executeMemoryUnlink,
+    executeMemoryEvidence,
+  } = await import('./memory/index.js');
+
+  tools['memory.query'] = {
     name: 'memory.query',
     execute: executeMemoryQuery as ToolExecutor<unknown>,
-  },
-  'memory.upsert': {
+  };
+  tools['memory.upsert'] = {
     name: 'memory.upsert',
     execute: executeMemoryUpsert as ToolExecutor<unknown>,
-  },
-  'memory.link': {
+  };
+  tools['memory.link'] = {
     name: 'memory.link',
     execute: executeMemoryLink as ToolExecutor<unknown>,
-  },
-  'memory.episode': {
+  };
+  tools['memory.episode'] = {
     name: 'memory.episode',
     execute: executeMemoryEpisode as ToolExecutor<unknown>,
-  },
-  'memory.unlink': {
+  };
+  tools['memory.unlink'] = {
     name: 'memory.unlink',
     execute: executeMemoryUnlink as ToolExecutor<unknown>,
-  },
-  'memory.evidence': {
+  };
+  tools['memory.evidence'] = {
     name: 'memory.evidence',
     execute: executeMemoryEvidence as ToolExecutor<unknown>,
-  },
-};
+  };
+}
 
 /**
  * Check if a tool exists.

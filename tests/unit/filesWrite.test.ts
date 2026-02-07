@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, rmSync, symlinkSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { executeFilesWrite } from '../../src/tools/filesWrite.js';
+import { executeFilesWrite } from '../../src/tools/core/filesWrite.js';
 import type { ToolPolicy } from '../../src/types.js';
 
 const createdRoots: string[] = [];
