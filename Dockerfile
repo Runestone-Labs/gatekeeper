@@ -13,6 +13,8 @@ RUN npm ci
 # Copy source code
 COPY src ./src
 COPY policy.example.yaml ./policy.yaml
+COPY drizzle.config.ts ./drizzle.config.ts
+COPY drizzle ./drizzle
 
 # Create data directories with correct ownership
 RUN mkdir -p data/approvals data/audit && \

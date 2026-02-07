@@ -74,6 +74,49 @@ app.get('/health', async () => {
   };
 });
 
+// Audit query endpoint
+app.get('/audit', async (request, reply) => {
+  if (!isDbAvailable()) {
+    reply.status(503).send({ error: 'Database not available' });
+    return;
+  }
+
+  const query = request.query as Record<string, string | undefined>;
+  const since = query.since;
+  const until = query.until;
+  const tool = query.tool;
+  const decision = query.decision;
+  const limit = Math.min(parseInt(query.limit || '200', 10), 500);
+  const offset = parseInt(query.offset || '0', 10);
+
+  try {
+    const { desc, and, gte, lte, eq } = await import('drizzle-orm');
+    const { auditLogs } = await import('./db/schema.js');
+    const db = (await import('./db/client.js')).getDb();
+
+    const conditions = [];
+    if (since) conditions.push(gte(auditLogs.timestamp, new Date(since)));
+    if (until) conditions.push(lte(auditLogs.timestamp, new Date(until)));
+    if (tool) conditions.push(eq(auditLogs.tool, tool));
+    if (decision) conditions.push(eq(auditLogs.decision, decision));
+
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const entries = await db
+      .select()
+      .from(auditLogs)
+      .where(where)
+      .orderBy(desc(auditLogs.timestamp))
+      .limit(limit)
+      .offset(offset);
+
+    reply.send({ entries, count: entries.length, offset, limit });
+  } catch (err) {
+    console.error('Audit query error:', err);
+    reply.status(500).send({ error: 'Failed to query audit logs' });
+  }
+});
+
 // Main tool execution endpoint
 app.post<{ Params: { toolName: string } }>('/tool/:toolName', async (request, reply) => {
   const { toolName } = request.params;

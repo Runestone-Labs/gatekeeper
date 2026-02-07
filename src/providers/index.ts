@@ -3,6 +3,7 @@ import { ApprovalProvider, AuditSink, PolicySource } from './types.js';
 import { LocalApprovalProvider } from './local-approval.js';
 import { SlackApprovalProvider } from './slack-approval.js';
 import { JsonlAuditSink } from './jsonl-audit.js';
+import { PostgresAuditSink } from './postgres-audit.js';
 import { YamlPolicySource } from './yaml-policy.js';
 import {
   RunestoneCloudApproval,
@@ -53,6 +54,9 @@ export function getAuditSink(): AuditSink {
   }
 
   switch (config.auditSink) {
+    case 'postgres':
+      auditSink = new PostgresAuditSink();
+      break;
     case 'runestone':
       auditSink = new RunestoneCloudAudit();
       break;

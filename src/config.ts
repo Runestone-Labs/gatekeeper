@@ -16,7 +16,7 @@ function loadVersion(): string {
 }
 
 export type ApprovalProviderType = 'local' | 'slack' | 'runestone';
-export type AuditSinkType = 'jsonl' | 'runestone';
+export type AuditSinkType = 'jsonl' | 'postgres' | 'runestone';
 export type PolicySourceType = 'yaml' | 'runestone';
 
 export const config = {
