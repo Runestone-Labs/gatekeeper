@@ -1,5 +1,5 @@
 {
-  "name": "@runestone/gatekeeper-client",
+  "name": "@runestone-labs/gatekeeper-client",
   "version": "0.3.0",
   "description": "TypeScript client for Runestone Gatekeeper - policy enforcement for AI agent tools",
   "type": "module",

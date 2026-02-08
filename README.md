@@ -1,7 +1,7 @@
 # Runestone Agent Gatekeeper
 
 [![CI](https://github.com/Runestone-Labs/gatekeeper/actions/workflows/ci.yml/badge.svg)](https://github.com/Runestone-Labs/gatekeeper/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/@runestone/gatekeeper-client)](https://www.npmjs.com/package/@runestone/gatekeeper-client)
+[![npm](https://img.shields.io/npm/v/@runestone-labs/gatekeeper-client)](https://www.npmjs.com/package/@runestone-labs/gatekeeper-client)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 A policy-based gatekeeper service that sits between AI agents and real-world tools (shell, HTTP, filesystem), enforcing approvals, denials, and audit logging.
@@ -423,11 +423,11 @@ For a complete audit log reference with querying examples, see [docs/AUDIT_LOGS.
 Install the TypeScript client for integrating your agent with Gatekeeper:
 
 ```bash
-npm install @runestone/gatekeeper-client
+npm install @runestone-labs/gatekeeper-client
 ```
 
 ```typescript
-import { GatekeeperClient } from '@runestone/gatekeeper-client';
+import { GatekeeperClient } from '@runestone-labs/gatekeeper-client';
 
 const client = new GatekeeperClient({
   baseUrl: 'http://127.0.0.1:3847',

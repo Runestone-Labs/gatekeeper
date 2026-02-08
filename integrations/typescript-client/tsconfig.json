@@ -13,5 +13,5 @@
     "forceConsistentCasingInFileNames": true
   },
   "include": ["*.ts"],
-  "exclude": ["*.test.ts", "dist"]
+  "exclude": ["*.test.ts", "vitest.config.ts", "dist"]
 }
