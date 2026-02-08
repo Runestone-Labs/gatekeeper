@@ -1,6 +1,7 @@
 # Runestone Agent Gatekeeper
 
 [![CI](https://github.com/Runestone-Labs/gatekeeper/actions/workflows/ci.yml/badge.svg)](https://github.com/Runestone-Labs/gatekeeper/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@runestone/gatekeeper-client)](https://www.npmjs.com/package/@runestone/gatekeeper-client)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 A policy-based gatekeeper service that sits between AI agents and real-world tools (shell, HTTP, filesystem), enforcing approvals, denials, and audit logging.
@@ -417,13 +418,32 @@ Logs are:
 
 For a complete audit log reference with querying examples, see [docs/AUDIT_LOGS.md](docs/AUDIT_LOGS.md).
 
+## Client Library
+
+Install the TypeScript client for integrating your agent with Gatekeeper:
+
+```bash
+npm install @runestone/gatekeeper-client
+```
+
+```typescript
+import { GatekeeperClient } from '@runestone/gatekeeper-client';
+
+const client = new GatekeeperClient({
+  baseUrl: 'http://127.0.0.1:3847',
+  role: 'openclaw',
+});
+
+// Execute a shell command through the gatekeeper
+const result = await client.shellExec({ command: 'ls -la' });
+console.log(result.decision); // 'allow' | 'approve' | 'deny'
+```
+
+See the full [client README](integrations/typescript-client/README.md) for all available methods.
+
 ## Using with Real Agents
 
-Gatekeeper is designed to be agent-agnostic. It does not embed or depend on any specific agent framework.
-
-In principle, any agent that can route tool calls over HTTP could integrate with Gatekeeper. See [INTEGRATING_AGENTS.md](INTEGRATING_AGENTS.md) for the conceptual integration pattern.
-
-This repository focuses on the enforcement boundary itself. Production agent integration is an area we expect to evolve alongside a hosted control plane.
+Gatekeeper is designed to be agent-agnostic. Any agent that can route tool calls over HTTP can integrate with Gatekeeper. See [INTEGRATING_AGENTS.md](INTEGRATING_AGENTS.md) for the integration pattern.
 
 ## Enterprise Control Plane
 
