@@ -120,3 +120,84 @@ export interface HttpRequestResult {
   body: string;
   truncated: boolean;
 }
+
+// ── Memory / Knowledge Graph types ──────────────────────────────────
+// These mirror the Drizzle schema in src/db/schema/memory.ts.
+// Field names use snake_case to match PostgreSQL column names returned
+// by the API (raw SQL results). This is the single source of truth
+// for consumers of the gatekeeper API.
+
+/** A knowledge graph entity (person, project, concept, etc.) */
+export interface MemoryEntity {
+  id: string;
+  type: string;
+  name: string;
+  description?: string | null;
+  attributes?: Record<string, unknown>;
+  confidence?: number;
+  provenance?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+/** An episode (event, decision, observation) in the knowledge graph */
+export interface MemoryEpisode {
+  id: string;
+  type: string;
+  summary: string;
+  details?: Record<string, unknown>;
+  importance?: number;
+  provenance?: string | null;
+  occurred_at?: string | null;
+  created_at?: string | null;
+  /** Entity IDs linked to this episode (present in some API responses) */
+  entityIds?: string[];
+}
+
+/** A piece of evidence supporting an entity or episode */
+export interface MemoryEvidence {
+  id: string;
+  type: string;
+  reference: string;
+  snippet?: string | null;
+  captured_at?: string | null;
+  taint?: string[];
+  relevance?: number;
+  /** Entity this evidence is linked to (from evidence_links join) */
+  entity_id?: string | null;
+  /** Episode this evidence is linked to (from evidence_links join) */
+  episode_id?: string | null;
+}
+
+/** Result from memory.upsert */
+export interface MemoryUpsertResult {
+  action: 'created' | 'updated';
+  entity: MemoryEntity;
+}
+
+/** Result from memory.episode */
+export interface MemoryEpisodeResult {
+  episode: MemoryEpisode;
+  linkedEntities: number;
+}
+
+/** Result from memory.evidence */
+export interface MemoryEvidenceResult {
+  evidence: MemoryEvidence;
+  linkedEntities: number;
+  linkedEpisodes: number;
+}
+
+/** Result from memory.query (varies by query type) */
+export interface MemoryQueryResult {
+  type: 'entity' | 'entities' | 'evidence' | 'cypher' | 'neighborhood' | 'episodes' | 'search';
+  data: MemoryEntity | MemoryEntity[] | MemoryEpisode[] | MemoryEvidence[] | unknown[];
+}
+
+/** Result from memory.link */
+export interface MemoryLinkResult {
+  relation: string;
+  sourceId: string;
+  targetId: string;
+  bidirectional: boolean;
+}
