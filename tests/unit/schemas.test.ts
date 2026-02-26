@@ -35,10 +35,10 @@ describe('ShellExecArgsSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects timeout > 30000', () => {
+  it('rejects timeout > 600000', () => {
     const result = ShellExecArgsSchema.safeParse({
       command: 'ls',
-      timeoutMs: 60000,
+      timeoutMs: 700000,
     });
     expect(result.success).toBe(false);
   });

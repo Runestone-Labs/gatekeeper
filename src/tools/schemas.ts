@@ -10,7 +10,7 @@ export const ShellExecArgsSchema = z
   .object({
     command: z.string().min(1, 'Command is required'),
     cwd: z.string().optional(),
-    timeoutMs: z.number().int().positive().max(30000).optional(),
+    timeoutMs: z.number().int().positive().max(600000).optional(),
   })
   .strict();
 
