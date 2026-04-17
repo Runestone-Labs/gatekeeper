@@ -20,6 +20,8 @@ export const entityTypes = [
   'place',
   'event',
   'document',
+  'prediction_market',
+  'thesis',
 ] as const;
 
 export type EntityType = (typeof entityTypes)[number];
