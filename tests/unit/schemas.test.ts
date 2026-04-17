@@ -168,6 +168,33 @@ describe('HttpRequestArgsSchema', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it('accepts optional per-call timeout_ms', () => {
+    const result = HttpRequestArgsSchema.safeParse({
+      url: 'https://example.com',
+      method: 'GET',
+      timeout_ms: 120_000,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects non-positive timeout_ms', () => {
+    const result = HttpRequestArgsSchema.safeParse({
+      url: 'https://example.com',
+      method: 'GET',
+      timeout_ms: 0,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects timeout_ms above 10 minutes', () => {
+    const result = HttpRequestArgsSchema.safeParse({
+      url: 'https://example.com',
+      method: 'GET',
+      timeout_ms: 600_001,
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe('ToolRequestSchema', () => {

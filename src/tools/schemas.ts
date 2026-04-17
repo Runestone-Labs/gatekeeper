@@ -32,6 +32,12 @@ export const HttpRequestArgsSchema = z
     method: z.enum(['GET', 'POST']),
     headers: z.record(z.string()).optional(),
     body: z.string().optional(),
+    /**
+     * Per-call timeout override (milliseconds). Clamped by the tool
+     * policy's `max_timeout_ms`. Falls back to policy.timeout_ms when
+     * omitted. Useful for slow upstreams (Claude API, large LLM calls).
+     */
+    timeout_ms: z.number().int().positive().max(600_000).optional(),
   })
   .strict();
 

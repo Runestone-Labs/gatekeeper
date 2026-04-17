@@ -109,6 +109,7 @@ tools:
       - "0.0.0.0/8"        # Current network
 
     # Limits
-    timeout_ms: 30000           # 30 seconds
+    timeout_ms: 30000           # Default for short upstream calls.
+    max_timeout_ms: 180000      # Ceiling for per-call timeout_ms overrides (3 min).
     max_body_bytes: 1048576     # 1MB response body limit
     max_redirects: 3

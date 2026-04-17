@@ -38,7 +38,13 @@ export async function executeHttpRequest(
   args: HttpRequestArgs,
   policy: ToolPolicy
 ): Promise<ToolResult> {
-  const timeoutMs = policy.timeout_ms ?? DEFAULT_TIMEOUT_MS;
+  // Per-call timeout override clamped by policy.max_timeout_ms; falls
+  // back to policy.timeout_ms (or the module default) when no override
+  // is given. Useful for slow upstreams like the Claude API.
+  const defaultTimeoutMs = policy.timeout_ms ?? DEFAULT_TIMEOUT_MS;
+  const maxTimeoutMs = policy.max_timeout_ms ?? Math.max(defaultTimeoutMs, DEFAULT_TIMEOUT_MS);
+  const requestedTimeoutMs = args.timeout_ms ?? defaultTimeoutMs;
+  const timeoutMs = Math.min(requestedTimeoutMs, maxTimeoutMs);
   const maxBodyBytes = policy.max_body_bytes ?? DEFAULT_MAX_BODY_BYTES;
   const denyIpRanges = policy.deny_ip_ranges ?? DEFAULT_DENY_IP_RANGES;
   const maxRedirects = policy.max_redirects ?? DEFAULT_MAX_REDIRECTS;
