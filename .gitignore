@@ -16,6 +16,10 @@ data/
 # Policy (copy from policy.example.yaml)
 policy.yaml
 
+# Local docker-compose overrides (dev DB URLs, host-specific networking)
+docker-compose.override.yaml
+docker-compose.override.yml
+
 # IDE
 .vscode/
 .idea/
