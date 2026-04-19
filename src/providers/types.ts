@@ -1,4 +1,4 @@
-import { PendingApproval, AuditEntry, Policy } from '../types.js';
+import { PendingApproval, AuditEntry, Policy, UsageFilter, UsageSummary } from '../types.js';
 
 /**
  * ApprovalProvider interface for sending approval notifications.
@@ -42,6 +42,13 @@ export interface AuditSink {
    * Optionally flush any buffered entries.
    */
   flush?(): Promise<void>;
+
+  /**
+   * Optionally summarize usage (call counts / durations) across the audit
+   * log. Sinks that can't efficiently aggregate (e.g. append-only files)
+   * may leave this unimplemented; the server responds 501 in that case.
+   */
+  summarizeUsage?(filter: UsageFilter): Promise<UsageSummary>;
 }
 
 /**

@@ -12,7 +12,7 @@ import {
 import { registerApprovalRoutes } from './approvals/routes.js';
 import { logToolRequest, logToolExecution, logApprovalConsumed } from './audit/logger.js';
 import { redactSecrets, canonicalize, computeHash } from './utils.js';
-import { getApprovalProvider, getPolicySource } from './providers/index.js';
+import { getApprovalProvider, getAuditSink, getPolicySource } from './providers/index.js';
 import { initDb, closeDb, checkDbHealth, isDbAvailable } from './db/client.js';
 import {
   getIdempotencyRecord,
@@ -121,6 +121,38 @@ app.get('/audit', async (request, reply) => {
   } catch (err) {
     console.error('Audit query error:', err);
     reply.status(500).send({ error: 'Failed to query audit logs' });
+  }
+});
+
+// Usage / metering endpoint — aggregates audit_logs to surface call counts
+// per actor × tool × day. Powers billing-adjacent reporting in downstream
+// dashboards. Delegates to the active AuditSink's optional summarizeUsage()
+// implementation; sinks without aggregation support return 501.
+app.get('/usage', async (request, reply) => {
+  const sink = getAuditSink();
+  if (!sink.summarizeUsage) {
+    reply
+      .status(501)
+      .send({ error: `Audit sink "${sink.name}" does not support usage aggregation` });
+    return;
+  }
+
+  const q = request.query as Record<string, string | undefined>;
+  const filter = {
+    since: q.since,
+    until: q.until,
+    actorName: q.actorName,
+    actorRole: q.actorRole,
+    tool: q.tool,
+    limit: q.limit ? Math.min(parseInt(q.limit, 10), 5000) : undefined,
+  };
+
+  try {
+    const summary = await sink.summarizeUsage(filter);
+    reply.send(summary);
+  } catch (err) {
+    console.error('Usage query error:', err);
+    reply.status(500).send({ error: 'Failed to compute usage summary' });
   }
 });
 

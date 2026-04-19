@@ -106,6 +106,44 @@ export interface AuditEntry {
   contextRefs?: ContextRef[];
 }
 
+// Usage / metering aggregation
+
+export interface UsageFilter {
+  /** ISO-8601 inclusive lower bound on the audit entry timestamp. */
+  since?: string;
+  /** ISO-8601 exclusive upper bound on the audit entry timestamp. */
+  until?: string;
+  actorName?: string;
+  actorRole?: string;
+  tool?: string;
+  /** Hard cap on returned rows. Defaults to 500. */
+  limit?: number;
+}
+
+export interface UsageRow {
+  actorName: string | null;
+  actorRole: string | null;
+  tool: string;
+  day: string; // YYYY-MM-DD (UTC)
+  callCount: number;
+  /** Sum of executionReceipt.durationMs across calls in the bucket. */
+  totalDurationMs: number | null;
+  /** Distribution of decisions in this bucket. */
+  decisions: Record<string, number>;
+}
+
+export interface UsageSummary {
+  rows: UsageRow[];
+  /** Total call count across all returned rows (post-filter, pre-limit). */
+  totalCalls: number;
+  /** Distinct actors seen. */
+  distinctActors: number;
+  /** Distinct tools seen. */
+  distinctTools: number;
+  filter: UsageFilter;
+  generatedAt: string;
+}
+
 // Tool policy configuration
 export interface ToolPolicy {
   decision: Decision;
