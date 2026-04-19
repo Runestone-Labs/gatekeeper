@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import yaml from 'js-yaml';
-import { Policy, ToolPolicy } from '../types.js';
+import { Policy, ToolPolicy, BudgetRule, BudgetWindow, BudgetMode } from '../types.js';
 import { computeHash } from '../utils.js';
 
 let cachedPolicy: Policy | null = null;
@@ -61,13 +61,48 @@ export function loadPolicy(policyPath: string): Policy {
         config.env_overrides && typeof config.env_overrides === 'object'
           ? (config.env_overrides as Record<string, string>)
           : undefined,
+      cost_usd: normalizeNumber(config.cost_usd),
     };
   }
 
-  cachedPolicy = { tools };
+  const budgets = normalizeBudgets((raw as { budgets?: unknown }).budgets);
+
+  cachedPolicy = { tools, budgets };
   cachedPolicyHash = 'sha256:' + computeHash(content);
 
   return cachedPolicy;
+}
+
+/** Parse the optional top-level `budgets:` array into BudgetRule entries. */
+function normalizeBudgets(value: unknown): BudgetRule[] | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined;
+  const out: BudgetRule[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== 'object') continue;
+    const r = raw as Record<string, unknown>;
+    const name = typeof r.name === 'string' ? r.name : undefined;
+    const windowValues = Object.values(BudgetWindow) as string[];
+    const window =
+      typeof r.window === 'string' && windowValues.includes(r.window)
+        ? (r.window as BudgetWindow)
+        : undefined;
+    const max_usd = typeof r.max_usd === 'number' ? r.max_usd : undefined;
+    const match =
+      r.match && typeof r.match === 'object' ? (r.match as Record<string, unknown>) : null;
+    if (!name || !window || max_usd == null || !match) {
+      throw new Error(
+        `Invalid budget rule: requires name, window (${windowValues.join('|')}), max_usd, and match{actor_name|actor_role}`
+      );
+    }
+    const actor_name = typeof match.actor_name === 'string' ? match.actor_name : undefined;
+    const actor_role = typeof match.actor_role === 'string' ? match.actor_role : undefined;
+    if (!actor_name && !actor_role) {
+      throw new Error(`Budget rule "${name}" must specify match.actor_name or match.actor_role`);
+    }
+    const mode = r.mode === BudgetMode.Soft ? BudgetMode.Soft : BudgetMode.Hard;
+    out.push({ name, window, max_usd, match: { actor_name, actor_role }, mode });
+  }
+  return out.length > 0 ? out : undefined;
 }
 
 /**

@@ -167,6 +167,44 @@ export interface ToolPolicy {
   run_as_gid?: number;
   env_allowlist?: string[];
   env_overrides?: Record<string, string>;
+  /**
+   * Nominal USD cost per successful tool call. Used by budget enforcement
+   * to track spend per actor across a rolling window. Omit for free tools.
+   */
+  cost_usd?: number;
+}
+
+// Budget enforcement configuration. Applies per actor (matched by name
+// and/or role). All calls against matched actors aggregate against the
+// budget until the window resets.
+
+export enum BudgetWindow {
+  Hour = 'hour',
+  Day = 'day',
+  Week = 'week',
+}
+
+export enum BudgetMode {
+  /** Reject tool calls that would exceed the budget with BUDGET_EXCEEDED. */
+  Hard = 'hard',
+  /** Log a risk flag but permit the call — useful for monitoring before enforcing. */
+  Soft = 'soft',
+}
+
+export interface BudgetRule {
+  /** Descriptive name surfaced in denial reasons and dashboards. */
+  name: string;
+  /** Actor matcher. At least one of name/role must be set. */
+  match: {
+    actor_role?: string;
+    actor_name?: string;
+  };
+  /** Rolling window for the max_usd cap. */
+  window: BudgetWindow;
+  /** Maximum USD that matched actors may accrue within the window. */
+  max_usd: number;
+  /** Enforcement mode. Defaults to BudgetMode.Hard. */
+  mode?: BudgetMode;
 }
 
 // Full policy structure
@@ -174,6 +212,8 @@ export interface Policy {
   tools: Record<string, ToolPolicy>;
   principals?: Record<string, PrincipalPolicy>; // v1: role-based policies
   global_deny_patterns?: string[];
+  /** Per-actor spending caps, enforced before tool execution. */
+  budgets?: BudgetRule[];
 }
 
 // v1: Alert budget configuration

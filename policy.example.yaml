@@ -113,3 +113,27 @@ tools:
     max_timeout_ms: 180000      # Ceiling for per-call timeout_ms overrides (3 min).
     max_body_bytes: 1048576     # 1MB response body limit
     max_redirects: 3
+
+    # Optional: nominal USD cost per successful call. When set, participates
+    # in the budgets[] enforcement below. Leave unset for free/untracked tools.
+    # cost_usd: 0.001
+
+# Optional: per-actor spending caps. Applied after other policy checks.
+# Each rule matches an actor by name and/or role, sums the cost_usd of all
+# recent calls within a rolling window, and rejects (or soft-flags) calls
+# that would push the total over max_usd.
+#
+# budgets:
+#   - name: researcher-daily
+#     match:
+#       actor_role: researcher
+#     window: day          # hour | day | week
+#     max_usd: 5.00
+#     mode: hard           # hard (default): reject with BUDGET_EXCEEDED
+#                          # soft: permit but log a risk flag
+#
+#   - name: specific-agent-hourly
+#     match:
+#       actor_name: pm-thesis-research
+#     window: hour
+#     max_usd: 1.00

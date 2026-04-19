@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { config, validateConfig } from './config.js';
 import { evaluateTool } from './policy/evaluate.js';
+import { enforceBudget, computeBudgetStatus } from './budget/enforcer.js';
 import { executeTool, validateToolArgs, toolExists } from './tools/index.js';
 import { ToolRequestSchema, initToolSchemas } from './tools/schemas.js';
 import {
@@ -156,6 +157,48 @@ app.get('/usage', async (request, reply) => {
   }
 });
 
+// Budget status endpoint — surfaces current spend vs cap per configured
+// rule, optionally filtered to a specific actor. Useful for dashboards and
+// for callers probing whether they have remaining budget before a call.
+app.get('/budget', async (request, reply) => {
+  if (!policy.budgets || policy.budgets.length === 0) {
+    reply.send({ rules: [], statuses: [], note: 'No budgets configured in policy.' });
+    return;
+  }
+
+  const q = request.query as Record<string, string | undefined>;
+  const sink = getAuditSink();
+
+  const actorFilter: { name?: string; role?: string } = {};
+  if (q.actorName) actorFilter.name = q.actorName;
+  if (q.actorRole) actorFilter.role = q.actorRole;
+
+  const statuses = [];
+  for (const rule of policy.budgets) {
+    // If caller filtered by actor, only include rules that would match it.
+    if (actorFilter.name || actorFilter.role) {
+      if (rule.match.actor_name && actorFilter.name && rule.match.actor_name !== actorFilter.name)
+        continue;
+      if (rule.match.actor_role && actorFilter.role && rule.match.actor_role !== actorFilter.role)
+        continue;
+    }
+    // Build a synthetic actor to drive the status computation.
+    const actor = {
+      type: 'agent' as const,
+      name: rule.match.actor_name ?? actorFilter.name ?? '*',
+      role: rule.match.actor_role ?? actorFilter.role ?? '*',
+    };
+    const status = await computeBudgetStatus(rule, actor, policy, sink);
+    statuses.push({ rule, status });
+  }
+
+  reply.send({
+    rules: policy.budgets,
+    statuses,
+    generatedAt: new Date().toISOString(),
+  });
+});
+
 // Main tool execution endpoint
 app.post<{ Params: { toolName: string } }>('/tool/:toolName', async (request, reply) => {
   const { toolName } = request.params;
@@ -257,6 +300,16 @@ app.post<{ Params: { toolName: string } }>('/tool/:toolName', async (request, re
 
   // Evaluate against policy (pass full envelope for v1 features)
   let evaluation = evaluateTool(toolName, args, policy, envelope);
+
+  // Budget enforcement — runs only if evaluation would otherwise allow/approve,
+  // and only for actors with a matching budgets[] rule. A BUDGET_EXCEEDED
+  // denial from here overrides an allow from the base policy.
+  if (evaluation.decision !== 'deny') {
+    const budgetDenial = await enforceBudget(toolName, actor, policy, getAuditSink());
+    if (budgetDenial) {
+      evaluation = budgetDenial;
+    }
+  }
 
   if (capabilityToken) {
     const capabilityResult = validateCapabilityToken({
