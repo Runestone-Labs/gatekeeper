@@ -4,7 +4,10 @@ services:
     ports:
       - "3847:3847"
     environment:
-      - GATEKEEPER_SECRET=${GATEKEEPER_SECRET:-default-dev-secret-change-in-prod}
+      # GATEKEEPER_SECRET must be set — docker-compose reads it from .env
+      # automatically. Generate one with `npm run bootstrap` or:
+      #   openssl rand -base64 32 > /tmp/s && echo "GATEKEEPER_SECRET=$(cat /tmp/s)" >> .env
+      - GATEKEEPER_SECRET=${GATEKEEPER_SECRET:?GATEKEEPER_SECRET is not set. Run `npm run bootstrap` or add it to .env (see .env.example).}
       - GATEKEEPER_HOST=0.0.0.0
       - DEMO_MODE=true
       - LOG_LEVEL=info

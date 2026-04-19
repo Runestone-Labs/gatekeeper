@@ -28,6 +28,7 @@
   "type": "module",
   "main": "src/server.ts",
   "scripts": {
+    "bootstrap": "bash scripts/bootstrap.sh",
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "typecheck": "tsc --noEmit",

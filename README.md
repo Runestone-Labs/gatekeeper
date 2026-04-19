@@ -4,7 +4,18 @@
 [![npm](https://img.shields.io/npm/v/@runestone-labs/gatekeeper-client)](https://www.npmjs.com/package/@runestone-labs/gatekeeper-client)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-A policy-based gatekeeper service that sits between AI agents and real-world tools (shell, HTTP, filesystem), enforcing approvals, denials, and audit logging.
+A policy-based gatekeeper service that sits between AI agents and real-world tools (shell, HTTP, filesystem), enforcing approvals, denials, USD budgets, and audit logging.
+
+## Who Is This For
+
+If you're running AI agents (Claude, GPT, local LLMs, MCP servers) that execute tool calls against real systems — and you're responsible for what happens when those calls go wrong — Gatekeeper is for you. Specifically:
+
+- **You build agentic apps** and your agent can run shell commands, write files, or hit external APIs.
+- **You've already had one "why did it do that?" moment** — or you're staring down the possibility.
+- **You want a self-hostable, auditable, single-binary boundary** between your agent and the world, without adopting an enterprise SSO stack or wiring everything through a cloud proxy.
+- **You need USD budgets and signed approvals** as first-class primitives, not features bolted onto an observability tool.
+
+You were probably using: nothing (and trusting the prompt), ad-hoc Python wrappers around `subprocess`, a cloud LLM gateway, or shell-level `sudoers` rules that don't understand tool semantics.
 
 ## What Problem This Solves
 
@@ -14,8 +25,9 @@ The Gatekeeper intercepts all tool requests and:
 - **Allows** low-risk operations immediately
 - **Denies** operations that match dangerous patterns
 - **Requires human approval** for sensitive operations
+- **Rejects when USD budget is exceeded** (optional, per-actor)
 
-All decisions are logged to an append-only audit trail.
+All decisions are logged to an append-only audit trail (jsonl or Postgres). An aggregation endpoint (`/usage`) exposes call counts by actor × tool × day. A budget endpoint (`/budget`) surfaces current spend vs cap per configured rule.
 
 ## Threat Model
 
@@ -40,8 +52,11 @@ The fastest way to try Gatekeeper:
 ```bash
 git clone https://github.com/Runestone-Labs/gatekeeper.git
 cd gatekeeper
-docker-compose up
+npm run bootstrap    # generates .env with a fresh GATEKEEPER_SECRET
+docker compose up
 ```
+
+`npm run bootstrap` creates `.env` from `.env.example` and writes a random 48-character `GATEKEEPER_SECRET` into it. Skip if you already have a `.env` you want to keep — docker-compose will error clearly if the secret isn't set.
 
 Gatekeeper is now running at http://127.0.0.1:3847 with demo mode enabled.
 
