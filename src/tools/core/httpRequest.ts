@@ -65,8 +65,8 @@ export async function executeHttpRequest(
 
     try {
       let redirects = 0;
-      let method = args.method;
-      let body = args.method === 'POST' ? args.body : undefined;
+      const method = args.method;
+      const body = args.method === 'POST' ? args.body : undefined;
 
       while (true) {
         const response = await fetch(currentUrl.toString(), {

@@ -15,7 +15,7 @@ class GatekeeperClient {
     this.agentName = agentName;
   }
 
-  async callTool(tool: string, args: Record<string, unknown>): Promise<any> {
+  async callTool(tool: string, args: Record<string, unknown>): Promise<Record<string, unknown>> {
     const requestId = crypto.randomUUID();
     const body = {
       requestId,
@@ -39,7 +39,9 @@ class GatekeeperClient {
       } catch {
         // Ignore JSON parse errors.
       }
-      throw new Error(`Gatekeeper request failed: ${response.status} ${response.statusText}${details}`);
+      throw new Error(
+        `Gatekeeper request failed: ${response.status} ${response.statusText}${details}`
+      );
     }
 
     return response.json();
@@ -55,34 +57,51 @@ function getClient(): GatekeeperClient {
   return client;
 }
 
-function formatResult(result: any): any {
-  if (result.decision === 'deny') {
+interface GatekeeperResponseBody {
+  decision?: 'allow' | 'approve' | 'deny';
+  humanExplanation?: string;
+  reasonCode?: string;
+  denial?: { humanExplanation?: string };
+  approvalRequest?: { approvalId?: string; expiresAt?: string };
+  approvalId?: string;
+  expiresAt?: string;
+  result?: unknown;
+}
+
+interface ToolResponse {
+  content: Array<{ type: string; text: string }>;
+  details?: unknown;
+}
+
+function formatResult(result: Record<string, unknown>): ToolResponse {
+  const r = result as GatekeeperResponseBody;
+  if (r.decision === 'deny') {
     const reason =
-      result.humanExplanation ||
-      result.denial?.humanExplanation ||
-      result.reasonCode ||
+      r.humanExplanation ||
+      r.denial?.humanExplanation ||
+      r.reasonCode ||
       'Request denied by policy';
     return { content: [{ type: 'text', text: 'Error: ' + reason }] };
   }
-  if (result.decision === 'approve') {
-    const approval = result.approvalRequest || {};
+  if (r.decision === 'approve') {
+    const approval = r.approvalRequest || {};
     return {
       content: [
         {
           type: 'text',
           text:
             'Approval required (expires: ' +
-            (result.expiresAt || approval.expiresAt) +
+            (r.expiresAt || approval.expiresAt) +
             '). Ask user to approve, then retry. Approval ID: ' +
-            (result.approvalId || approval.approvalId),
+            (r.approvalId || approval.approvalId),
         },
       ],
-      details: { pending: true, approvalId: result.approvalId || approval.approvalId },
+      details: { pending: true, approvalId: r.approvalId || approval.approvalId },
     };
   }
   return {
-    content: [{ type: 'text', text: JSON.stringify(result.result, null, 2) }],
-    details: result.result,
+    content: [{ type: 'text', text: JSON.stringify(r.result, null, 2) }],
+    details: r.result,
   };
 }
 
@@ -105,8 +124,9 @@ function createGkExecTool() {
       try {
         const result = await getClient().callTool('shell.exec', params);
         return formatResult(result);
-      } catch (err: any) {
-        return { content: [{ type: 'text', text: 'Gatekeeper error: ' + err.message }] };
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { content: [{ type: 'text', text: 'Gatekeeper error: ' + msg }] };
       }
     },
   };
@@ -129,8 +149,9 @@ function createGkWriteTool() {
       try {
         const result = await getClient().callTool('files.write', params);
         return formatResult(result);
-      } catch (err: any) {
-        return { content: [{ type: 'text', text: 'Gatekeeper error: ' + err.message }] };
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { content: [{ type: 'text', text: 'Gatekeeper error: ' + msg }] };
       }
     },
   };
@@ -145,7 +166,11 @@ function createGkHttpTool() {
       properties: {
         url: { type: 'string', description: 'Request URL' },
         method: { type: 'string', description: 'HTTP method (GET, POST, PUT, DELETE, etc.)' },
-        headers: { type: 'object', additionalProperties: { type: 'string' }, description: 'Request headers' },
+        headers: {
+          type: 'object',
+          additionalProperties: { type: 'string' },
+          description: 'Request headers',
+        },
         body: { type: 'string', description: 'Request body' },
       },
       required: ['url', 'method'],
@@ -154,16 +179,23 @@ function createGkHttpTool() {
       try {
         const result = await getClient().callTool('http.request', params);
         return formatResult(result);
-      } catch (err: any) {
-        return { content: [{ type: 'text', text: 'Gatekeeper error: ' + err.message }] };
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { content: [{ type: 'text', text: 'Gatekeeper error: ' + msg }] };
       }
     },
   };
 }
 
-export default function register(api: any) {
+interface OpenClawPluginApi {
+  pluginConfig?: { gatekeeperUrl?: string };
+  registerTool: (tool: unknown, opts?: { optional?: boolean }) => void;
+}
+
+export default function register(api: OpenClawPluginApi) {
   const pluginCfg = api.pluginConfig || {};
-  const gatekeeperUrl = pluginCfg.gatekeeperUrl || process.env.GATEKEEPER_URL || 'http://127.0.0.1:3847';
+  const gatekeeperUrl =
+    pluginCfg.gatekeeperUrl || process.env.GATEKEEPER_URL || 'http://127.0.0.1:3847';
 
   // Initialize client
   client = new GatekeeperClient(gatekeeperUrl);

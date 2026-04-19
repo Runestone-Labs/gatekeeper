@@ -233,9 +233,7 @@ app.post<{ Params: { toolName: string } }>('/tool/:toolName', async (request, re
     }
 
     if (existingRecord.status === 'completed' && existingRecord.response) {
-      reply
-        .status(existingRecord.response.statusCode)
-        .send(existingRecord.response.body);
+      reply.status(existingRecord.response.statusCode).send(existingRecord.response.body);
       return;
     }
 

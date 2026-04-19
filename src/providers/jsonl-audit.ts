@@ -132,9 +132,8 @@ export class JsonlAuditSink implements AuditSink {
       .sort((a, b) => b.callCount - a.callCount || (a.day < b.day ? 1 : -1))
       .slice(0, limit);
 
-    const distinctActors = new Set(
-      rows.map((r) => `${r.actorName ?? ''}:${r.actorRole ?? ''}`),
-    ).size;
+    const distinctActors = new Set(rows.map((r) => `${r.actorName ?? ''}:${r.actorRole ?? ''}`))
+      .size;
     const distinctTools = new Set(rows.map((r) => r.tool)).size;
     const totalCalls = rows.reduce((sum, r) => sum + r.callCount, 0);
 

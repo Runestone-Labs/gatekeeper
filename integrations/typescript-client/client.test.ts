@@ -53,15 +53,19 @@ describe('GatekeeperClient', () => {
         agentName: 'test-agent',
       });
 
-      await client.callTool('shell.exec', { command: 'ls' }, {
-        origin: 'external_content',
-        taint: ['external'],
-        contextRefs: [{ type: 'url', id: 'https://example.com' }],
-        idempotencyKey: 'idem-123',
-        dryRun: true,
-        capabilityToken: 'cap-token',
-        timestamp: '2026-01-01T00:00:00.000Z',
-      });
+      await client.callTool(
+        'shell.exec',
+        { command: 'ls' },
+        {
+          origin: 'external_content',
+          taint: ['external'],
+          contextRefs: [{ type: 'url', id: 'https://example.com' }],
+          idempotencyKey: 'idem-123',
+          dryRun: true,
+          capabilityToken: 'cap-token',
+          timestamp: '2026-01-01T00:00:00.000Z',
+        }
+      );
 
       expect(mockFetch).toHaveBeenCalledWith(
         'http://127.0.0.1:3847/tool/shell.exec',

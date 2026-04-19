@@ -93,20 +93,18 @@ async function buildApp(demoMode: boolean): Promise<FastifyInstance> {
       return reply.status(202).send(response);
     }
 
-    return reply
-      .status(403)
-      .send({
-        decision: 'deny',
+    return reply.status(403).send({
+      decision: 'deny',
+      reasonCode: evaluation.reasonCode,
+      humanExplanation: evaluation.humanExplanation,
+      remediation: evaluation.remediation,
+      denial: {
         reasonCode: evaluation.reasonCode,
         humanExplanation: evaluation.humanExplanation,
         remediation: evaluation.remediation,
-        denial: {
-          reasonCode: evaluation.reasonCode,
-          humanExplanation: evaluation.humanExplanation,
-          remediation: evaluation.remediation,
-        },
-        policyVersion: policySource.getHash(),
-      });
+      },
+      policyVersion: policySource.getHash(),
+    });
   });
 
   return app;

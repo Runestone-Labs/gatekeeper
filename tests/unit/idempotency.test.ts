@@ -9,11 +9,8 @@ vi.mock('../../src/config.js', () => ({
   },
 }));
 
-const {
-  createPendingRecord,
-  getIdempotencyRecord,
-  completeIdempotencyRecord,
-} = await import('../../src/idempotency/store.js');
+const { createPendingRecord, getIdempotencyRecord, completeIdempotencyRecord } =
+  await import('../../src/idempotency/store.js');
 
 describe('idempotency store', () => {
   beforeEach(() => {

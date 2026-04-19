@@ -24,11 +24,15 @@ export async function executeShellExec(
   const env = buildExecutionEnv(policy);
   const command = buildCommand(args.command, policy);
   const uid =
-    typeof policy.run_as_uid === 'number' && Number.isInteger(policy.run_as_uid) && policy.run_as_uid >= 0
+    typeof policy.run_as_uid === 'number' &&
+    Number.isInteger(policy.run_as_uid) &&
+    policy.run_as_uid >= 0
       ? policy.run_as_uid
       : undefined;
   const gid =
-    typeof policy.run_as_gid === 'number' && Number.isInteger(policy.run_as_gid) && policy.run_as_gid >= 0
+    typeof policy.run_as_gid === 'number' &&
+    Number.isInteger(policy.run_as_gid) &&
+    policy.run_as_gid >= 0
       ? policy.run_as_gid
       : undefined;
 

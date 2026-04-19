@@ -38,7 +38,7 @@ describe('http.request timeout handling', () => {
 
   async function run(
     args: { url: string; method: string; body?: string; timeout_ms?: number },
-    policy: ToolPolicy,
+    policy: ToolPolicy
   ) {
     const { executeHttpRequest } = await import('../../src/tools/core/httpRequest.js');
     return executeHttpRequest(args, policy);
@@ -59,7 +59,7 @@ describe('http.request timeout handling', () => {
     });
     const result = await run(
       { url: 'https://example.com', method: 'GET', timeout_ms: 90_000 },
-      policy,
+      policy
     );
     expect(result.success).toBe(true);
   });
@@ -76,7 +76,7 @@ describe('http.request timeout handling', () => {
 
     const resultPromise = run(
       { url: 'https://example.com', method: 'GET', timeout_ms: 999_999 },
-      policy,
+      policy
     );
     // Advance 60s (the clamp) — should abort.
     await vi.advanceTimersByTimeAsync(60_000);
@@ -128,7 +128,7 @@ describe('http.request timeout handling', () => {
     vi.useRealTimers(); // avoid interfering with the awaited mock rejection
     const result = await run(
       { url: 'https://example.com', method: 'GET', timeout_ms: 8_000 },
-      policy,
+      policy
     );
     expect(result.success).toBe(false);
     // Effective timeout = min(8_000, 10_000) = 8_000
@@ -148,7 +148,7 @@ describe('http.request timeout handling', () => {
     vi.useRealTimers();
     const result = await run(
       { url: 'https://example.com', method: 'GET', timeout_ms: 999_999 },
-      policy,
+      policy
     );
     expect(result.success).toBe(false);
     // Clamped to 10_000

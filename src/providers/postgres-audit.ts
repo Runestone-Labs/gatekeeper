@@ -25,15 +25,17 @@ export class PostgresAuditSink implements AuditSink {
         tool: entry.tool,
         decision: entry.decision,
         actor: entry.actor,
-        argsSummary: typeof entry.argsSummary === 'string'
-          ? entry.argsSummary
-          : JSON.stringify(entry.argsSummary),
+        argsSummary:
+          typeof entry.argsSummary === 'string'
+            ? entry.argsSummary
+            : JSON.stringify(entry.argsSummary),
         argsHash: entry.argsHash,
-        resultSummary: entry.resultSummary != null
-          ? (typeof entry.resultSummary === 'string'
-            ? entry.resultSummary
-            : JSON.stringify(entry.resultSummary))
-          : null,
+        resultSummary:
+          entry.resultSummary != null
+            ? typeof entry.resultSummary === 'string'
+              ? entry.resultSummary
+              : JSON.stringify(entry.resultSummary)
+            : null,
         executionReceipt: entry.executionReceipt ?? null,
         riskFlags: entry.riskFlags ?? [],
         reasonCode: entry.reasonCode,
@@ -133,9 +135,8 @@ export class PostgresAuditSink implements AuditSink {
       };
     });
 
-    const distinctActors = new Set(
-      out.map((r) => `${r.actorName ?? ''}:${r.actorRole ?? ''}`),
-    ).size;
+    const distinctActors = new Set(out.map((r) => `${r.actorName ?? ''}:${r.actorRole ?? ''}`))
+      .size;
     const distinctTools = new Set(out.map((r) => r.tool)).size;
     const totalCalls = out.reduce((sum, r) => sum + r.callCount, 0);
 

@@ -198,7 +198,7 @@ function loadPolicyFile(policyPath: string, visited: Set<string>): RawPolicyData
   let merged: RawPolicyData = {};
 
   const extendsList =
-    typeof raw.extends === 'string' ? [raw.extends] : normalizeStringArray(raw.extends) ?? [];
+    typeof raw.extends === 'string' ? [raw.extends] : (normalizeStringArray(raw.extends) ?? []);
   for (const extendPath of extendsList) {
     const resolvedExtend = resolve(dirname(resolvedPath), extendPath);
     merged = mergeRawPolicies(merged, loadPolicyFile(resolvedExtend, visited));
@@ -239,7 +239,10 @@ function mergeRawPolicies(base: RawPolicyData, override: RawPolicyData): RawPoli
   return {
     tools: mergeToolConfigs(base.tools, override.tools),
     principals: mergePrincipals(base.principals, override.principals),
-    global_deny_patterns: mergeStringArrays(base.global_deny_patterns, override.global_deny_patterns),
+    global_deny_patterns: mergeStringArrays(
+      base.global_deny_patterns,
+      override.global_deny_patterns
+    ),
   };
 }
 
@@ -341,8 +344,7 @@ function mergePrincipalPolicy(
     ...base,
     ...override,
     denyPatterns: mergeStringArrays(base.denyPatterns, override.denyPatterns),
-    allowedTools:
-      override.allowedTools !== undefined ? override.allowedTools : base.allowedTools,
+    allowedTools: override.allowedTools !== undefined ? override.allowedTools : base.allowedTools,
     requireApproval:
       override.requireApproval !== undefined ? override.requireApproval : base.requireApproval,
     alertBudget: override.alertBudget !== undefined ? override.alertBudget : base.alertBudget,

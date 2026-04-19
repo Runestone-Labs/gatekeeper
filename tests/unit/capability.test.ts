@@ -2,9 +2,8 @@ import { describe, it, expect } from 'vitest';
 
 process.env.GATEKEEPER_SECRET = 'test-secret-key-at-least-32-characters-long';
 
-const { createCapabilityToken, validateCapabilityToken } = await import(
-  '../../src/capabilities/token.js'
-);
+const { createCapabilityToken, validateCapabilityToken } =
+  await import('../../src/capabilities/token.js');
 
 describe('capability tokens', () => {
   it('validates a signed token', () => {

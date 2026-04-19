@@ -18,8 +18,11 @@ vi.stubGlobal('crypto', {
 vi.stubEnv('GATEKEEPER_URL', 'http://127.0.0.1:3847');
 
 describe('OpenClaw Gatekeeper Tool Plugin', () => {
-  let registeredTools: any[] = [];
-  let mockApi: any;
+  let registeredTools: Array<Record<string, unknown>> = [];
+  let mockApi: {
+    pluginConfig: Record<string, unknown>;
+    registerTool: (tool: Record<string, unknown>, options?: { optional?: boolean }) => void;
+  };
 
   beforeEach(() => {
     mockFetch.mockReset();
@@ -28,7 +31,7 @@ describe('OpenClaw Gatekeeper Tool Plugin', () => {
     // Mock the OpenClaw API
     mockApi = {
       pluginConfig: {},
-      registerTool: (tool: any, _options?: any) => {
+      registerTool: (tool: Record<string, unknown>, _options?: { optional?: boolean }) => {
         registeredTools.push(tool);
       },
     };
@@ -155,7 +158,10 @@ describe('OpenClaw Gatekeeper Tool Plugin', () => {
           }),
       });
 
-      const result = await getWriteTool().execute('tool-call-id', { path: '/tmp/test.txt', content: 'Hello world!' });
+      const result = await getWriteTool().execute('tool-call-id', {
+        path: '/tmp/test.txt',
+        content: 'Hello world!',
+      });
 
       expect(result.details).toEqual({ path: '/tmp/test.txt', bytesWritten: 12 });
     });
@@ -172,7 +178,10 @@ describe('OpenClaw Gatekeeper Tool Plugin', () => {
           }),
       });
 
-      const result = await getWriteTool().execute('tool-call-id', { path: '/app/.env', content: 'SECRET=abc' });
+      const result = await getWriteTool().execute('tool-call-id', {
+        path: '/app/.env',
+        content: 'SECRET=abc',
+      });
 
       expect(result.content[0].text).toContain('Error');
       expect(result.content[0].text).toContain('.env');
@@ -198,7 +207,10 @@ describe('OpenClaw Gatekeeper Tool Plugin', () => {
           }),
       });
 
-      const result = await getHttpTool().execute('tool-call-id', { url: 'https://api.example.com', method: 'GET' });
+      const result = await getHttpTool().execute('tool-call-id', {
+        url: 'https://api.example.com',
+        method: 'GET',
+      });
 
       expect(result.details).toEqual({
         status: 200,

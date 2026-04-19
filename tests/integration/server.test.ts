@@ -20,11 +20,8 @@ async function buildApp(): Promise<FastifyInstance> {
   const { executeTool, validateToolArgs, toolExists } = await import('../../src/tools/index.js');
   const { ToolRequestSchema } = await import('../../src/tools/schemas.js');
   const { createApproval } = await import('../../src/approvals/store.js');
-  const {
-    getIdempotencyRecord,
-    createPendingRecord,
-    completeIdempotencyRecord,
-  } = await import('../../src/idempotency/store.js');
+  const { getIdempotencyRecord, createPendingRecord, completeIdempotencyRecord } =
+    await import('../../src/idempotency/store.js');
   const { registerApprovalRoutes } = await import('../../src/approvals/routes.js');
   const { logToolRequest, logToolExecution } = await import('../../src/audit/logger.js');
   const { redactSecrets, canonicalize, computeHash } = await import('../../src/utils.js');
@@ -82,9 +79,7 @@ async function buildApp(): Promise<FastifyInstance> {
       }
 
       if (existingRecord.status === 'completed' && existingRecord.response) {
-        return reply
-          .status(existingRecord.response.statusCode)
-          .send(existingRecord.response.body);
+        return reply.status(existingRecord.response.statusCode).send(existingRecord.response.body);
       }
 
       return reply.status(409).send({
@@ -119,7 +114,7 @@ async function buildApp(): Promise<FastifyInstance> {
     });
 
     switch (evaluation.decision) {
-      case 'deny':
+      case 'deny': {
         const responseBody = {
           decision: 'deny',
           reasonCode: evaluation.reasonCode,
@@ -137,6 +132,7 @@ async function buildApp(): Promise<FastifyInstance> {
 
         completeIdempotencyRecord(idempotencyKey, { statusCode: 403, body: responseBody });
         return reply.status(403).send(responseBody);
+      }
 
       case 'approve': {
         const { approval } = createApproval({

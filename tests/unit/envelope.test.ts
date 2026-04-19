@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  ToolRequestSchema,
-  ContextRefSchema,
-  OriginSchema,
-} from '../../src/tools/schemas.js';
+import { ToolRequestSchema, ContextRefSchema, OriginSchema } from '../../src/tools/schemas.js';
 import { evaluateTool, EvaluationEnvelope } from '../../src/policy/evaluate.js';
 import { Policy, PrincipalPolicy } from '../../src/types.js';
 import {
@@ -161,7 +157,12 @@ describe('Taint-aware Policy Evaluation', () => {
       args: { path: '/etc/passwd', content: 'hack' },
       taint: ['external'],
     };
-    const result = evaluateTool('files.write', { path: '/etc/passwd', content: 'hack' }, basePolicy, envelope);
+    const result = evaluateTool(
+      'files.write',
+      { path: '/etc/passwd', content: 'hack' },
+      basePolicy,
+      envelope
+    );
     expect(result.decision).toBe('deny');
     expect(result.riskFlags).toContain('tainted_write');
     expect(result.riskFlags).toContain('system_path');
@@ -174,7 +175,12 @@ describe('Taint-aware Policy Evaluation', () => {
       args: { path: '/tmp/test.txt', content: 'hello' },
       taint: ['external'],
     };
-    const result = evaluateTool('files.write', { path: '/tmp/test.txt', content: 'hello' }, basePolicy, envelope);
+    const result = evaluateTool(
+      'files.write',
+      { path: '/tmp/test.txt', content: 'hello' },
+      basePolicy,
+      envelope
+    );
     expect(result.decision).toBe('approve');
     expect(result.riskFlags).toContain('tainted_write');
   });
@@ -186,7 +192,12 @@ describe('Taint-aware Policy Evaluation', () => {
       args: { url: 'http://127.0.0.1:8080/admin', method: 'GET' },
       taint: ['external'],
     };
-    const result = evaluateTool('http.request', { url: 'http://127.0.0.1:8080/admin', method: 'GET' }, basePolicy, envelope);
+    const result = evaluateTool(
+      'http.request',
+      { url: 'http://127.0.0.1:8080/admin', method: 'GET' },
+      basePolicy,
+      envelope
+    );
     expect(result.decision).toBe('deny');
     expect(result.riskFlags).toContain('internal_host');
   });
@@ -198,7 +209,12 @@ describe('Taint-aware Policy Evaluation', () => {
       args: { url: 'http://169.254.169.254/latest/meta-data/', method: 'GET' },
       taint: ['external'],
     };
-    const result = evaluateTool('http.request', { url: 'http://169.254.169.254/latest/meta-data/', method: 'GET' }, basePolicy, envelope);
+    const result = evaluateTool(
+      'http.request',
+      { url: 'http://169.254.169.254/latest/meta-data/', method: 'GET' },
+      basePolicy,
+      envelope
+    );
     expect(result.decision).toBe('deny');
     expect(result.riskFlags).toContain('internal_host');
   });
@@ -210,7 +226,12 @@ describe('Taint-aware Policy Evaluation', () => {
       args: { url: 'https://api.example.com/data', method: 'GET' },
       taint: ['external'],
     };
-    const result = evaluateTool('http.request', { url: 'https://api.example.com/data', method: 'GET' }, basePolicy, envelope);
+    const result = evaluateTool(
+      'http.request',
+      { url: 'https://api.example.com/data', method: 'GET' },
+      basePolicy,
+      envelope
+    );
     expect(result.decision).toBe('allow');
   });
 });
@@ -258,7 +279,12 @@ describe('Principal/Role Policy Evaluation', () => {
       actor: { type: 'agent', name: 'navigator-agent', role: 'navigator' },
       args: { path: '/tmp/test.txt', content: 'hello' },
     };
-    const result = evaluateTool('files.write', { path: '/tmp/test.txt', content: 'hello' }, policyWithPrincipals, envelope);
+    const result = evaluateTool(
+      'files.write',
+      { path: '/tmp/test.txt', content: 'hello' },
+      policyWithPrincipals,
+      envelope
+    );
     expect(result.decision).toBe('approve');
     expect(result.riskFlags).toContain('role:navigator');
   });
@@ -269,7 +295,12 @@ describe('Principal/Role Policy Evaluation', () => {
       actor: { type: 'agent', name: 'navigator-agent', role: 'navigator' },
       args: { url: 'https://example.com', method: 'GET' },
     };
-    const result = evaluateTool('http.request', { url: 'https://example.com', method: 'GET' }, policyWithPrincipals, envelope);
+    const result = evaluateTool(
+      'http.request',
+      { url: 'https://example.com', method: 'GET' },
+      policyWithPrincipals,
+      envelope
+    );
     expect(result.decision).toBe('allow');
   });
 
@@ -279,7 +310,12 @@ describe('Principal/Role Policy Evaluation', () => {
       actor: { type: 'agent', name: 'sentinel-agent', role: 'sentinel' },
       args: { command: 'rm -rf /tmp/test' },
     };
-    const result = evaluateTool('shell.exec', { command: 'rm -rf /tmp/test' }, policyWithPrincipals, envelope);
+    const result = evaluateTool(
+      'shell.exec',
+      { command: 'rm -rf /tmp/test' },
+      policyWithPrincipals,
+      envelope
+    );
     expect(result.decision).toBe('deny');
     expect(result.riskFlags).toContain('principal_pattern_match');
   });

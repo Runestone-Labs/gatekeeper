@@ -60,11 +60,12 @@ async function main() {
         const result = await client.shellExec({ command: 'ls -la /tmp' });
         return {
           decision: result.decision,
-          details: result.decision === 'approve'
-            ? `approvalId=${result.approvalId?.slice(0, 8)}...`
-            : result.decision === 'allow'
-              ? `exit=${result.result?.exitCode}`
-              : result.humanExplanation,
+          details:
+            result.decision === 'approve'
+              ? `approvalId=${result.approvalId?.slice(0, 8)}...`
+              : result.decision === 'allow'
+                ? `exit=${result.result?.exitCode}`
+                : result.humanExplanation,
         };
       },
     },
@@ -135,11 +136,12 @@ async function main() {
         });
         return {
           decision: result.decision,
-          details: result.decision === 'approve'
-            ? `approvalId=${result.approvalId?.slice(0, 8)}...`
-            : result.decision === 'allow'
-              ? `bytes=${result.result?.bytesWritten}`
-              : result.humanExplanation,
+          details:
+            result.decision === 'approve'
+              ? `approvalId=${result.approvalId?.slice(0, 8)}...`
+              : result.decision === 'allow'
+                ? `bytes=${result.result?.bytesWritten}`
+                : result.humanExplanation,
         };
       },
     },

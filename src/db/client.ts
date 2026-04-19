@@ -138,7 +138,11 @@ export async function closeDb(): Promise<void> {
 /**
  * Health check for database
  */
-export async function checkDbHealth(): Promise<{ ok: boolean; latencyMs?: number; error?: string }> {
+export async function checkDbHealth(): Promise<{
+  ok: boolean;
+  latencyMs?: number;
+  error?: string;
+}> {
   if (!pool) {
     return { ok: false, error: 'Database not initialized' };
   }

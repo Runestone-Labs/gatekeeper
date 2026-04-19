@@ -122,16 +122,13 @@ export function evaluateTool(
     decision: toolPolicy.decision,
     reason:
       toolPolicy.decision === 'approve' ? 'Requires human approval' : `Policy allows ${toolName}`,
-    reasonCode:
-      toolPolicy.decision === 'approve' ? 'POLICY_APPROVAL_REQUIRED' : 'POLICY_ALLOW',
+    reasonCode: toolPolicy.decision === 'approve' ? 'POLICY_APPROVAL_REQUIRED' : 'POLICY_ALLOW',
     humanExplanation:
       toolPolicy.decision === 'approve'
         ? `Policy requires human approval before running "${toolName}".`
         : `Policy allows "${toolName}".`,
     remediation:
-      toolPolicy.decision === 'approve'
-        ? 'Request approval from the user to proceed.'
-        : undefined,
+      toolPolicy.decision === 'approve' ? 'Request approval from the user to proceed.' : undefined,
     riskFlags: [],
   };
 }
@@ -316,7 +313,9 @@ function isSystemPath(path: string): boolean {
     'C:\\Program Files',
     'C:\\System32',
   ];
-  return systemPrefixes.some((prefix) => path.startsWith(prefix) || path.toLowerCase().startsWith(prefix.toLowerCase()));
+  return systemPrefixes.some(
+    (prefix) => path.startsWith(prefix) || path.toLowerCase().startsWith(prefix.toLowerCase())
+  );
 }
 
 /**
@@ -543,7 +542,9 @@ function validateFilesWrite(args: Record<string, unknown>, policy: ToolPolicy): 
 
   // Validate extension
   if (policy.deny_extensions && policy.deny_extensions.length > 0) {
-    const ext = extname(resolvedPath) || (basename(resolvedPath).startsWith('.') ? basename(resolvedPath) : '');
+    const ext =
+      extname(resolvedPath) ||
+      (basename(resolvedPath).startsWith('.') ? basename(resolvedPath) : '');
     if (policy.deny_extensions.includes(ext)) {
       return {
         reason: `Denied: extension "${ext}" is not allowed`,

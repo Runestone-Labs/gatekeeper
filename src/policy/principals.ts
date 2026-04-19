@@ -171,7 +171,9 @@ export function validatePrincipalPolicy(
       }
       const validThresholds = ['low', 'medium', 'high'];
       if (!validThresholds.includes(budget.severityThreshold as string)) {
-        errors.push(`${name}: alertBudget.severityThreshold must be one of: ${validThresholds.join(', ')}`);
+        errors.push(
+          `${name}: alertBudget.severityThreshold must be one of: ${validThresholds.join(', ')}`
+        );
       }
     }
   }

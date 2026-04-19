@@ -82,7 +82,9 @@ export class GatekeeperClient {
 
     const role = options?.actor?.role || this.agentRole;
     if (!role) {
-      throw new Error('Actor role is required. Set agentRole in config or GATEKEEPER_ROLE env var.');
+      throw new Error(
+        'Actor role is required. Set agentRole in config or GATEKEEPER_ROLE env var.'
+      );
     }
 
     const actor: Actor = {
@@ -126,7 +128,9 @@ export class GatekeeperClient {
       } catch {
         // Ignore JSON parse errors.
       }
-      throw new Error(`Gatekeeper request failed: ${response.status} ${response.statusText}${details}`);
+      throw new Error(
+        `Gatekeeper request failed: ${response.status} ${response.statusText}${details}`
+      );
     }
 
     return response.json() as Promise<GatekeeperResult<T>>;
@@ -139,7 +143,11 @@ export class GatekeeperClient {
     args: ShellExecArgs,
     options?: { actor?: Partial<Actor>; context?: RequestContext }
   ): Promise<GatekeeperResult<ShellExecResult>> {
-    return this.callTool<ShellExecResult>('shell.exec', args as unknown as Record<string, unknown>, options);
+    return this.callTool<ShellExecResult>(
+      'shell.exec',
+      args as unknown as Record<string, unknown>,
+      options
+    );
   }
 
   /**
@@ -149,7 +157,11 @@ export class GatekeeperClient {
     args: FilesWriteArgs,
     options?: { actor?: Partial<Actor>; context?: RequestContext }
   ): Promise<GatekeeperResult<FilesWriteResult>> {
-    return this.callTool<FilesWriteResult>('files.write', args as unknown as Record<string, unknown>, options);
+    return this.callTool<FilesWriteResult>(
+      'files.write',
+      args as unknown as Record<string, unknown>,
+      options
+    );
   }
 
   /**
@@ -159,7 +171,11 @@ export class GatekeeperClient {
     args: HttpRequestArgs,
     options?: { actor?: Partial<Actor>; context?: RequestContext }
   ): Promise<GatekeeperResult<HttpRequestResult>> {
-    return this.callTool<HttpRequestResult>('http.request', args as unknown as Record<string, unknown>, options);
+    return this.callTool<HttpRequestResult>(
+      'http.request',
+      args as unknown as Record<string, unknown>,
+      options
+    );
   }
 
   /**

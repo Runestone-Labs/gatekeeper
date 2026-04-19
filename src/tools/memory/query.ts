@@ -158,9 +158,7 @@ export async function executeMemoryQuery(args: MemoryQueryArgs): Promise<ToolRes
     // Neighborhood query via Cypher
     if (args.fromEntity) {
       const maxHops = args.maxHops || 2;
-      const relationFilter = args.relationTypes?.length
-        ? `:${args.relationTypes.join('|')}`
-        : '';
+      const relationFilter = args.relationTypes?.length ? `:${args.relationTypes.join('|')}` : '';
 
       const cypher = `
         MATCH (start:Entity {id: '${args.fromEntity}'})-[r${relationFilter}*1..${maxHops}]-(related:Entity)

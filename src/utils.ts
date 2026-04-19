@@ -308,14 +308,9 @@ function coerceIpv4Mapped(parsed: ParsedIP, targetKind: 4 | 6): ParsedIP {
   return parsed;
 }
 
-function matchesCidr(
-  value: bigint,
-  range: bigint,
-  maskBits: number,
-  totalBits: number
-): boolean {
+function matchesCidr(value: bigint, range: bigint, maskBits: number, totalBits: number): boolean {
   if (maskBits === 0) return true;
 
   const shift = BigInt(totalBits - maskBits);
-  return (value >> shift) === (range >> shift);
+  return value >> shift === range >> shift;
 }

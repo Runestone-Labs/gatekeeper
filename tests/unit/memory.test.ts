@@ -236,10 +236,7 @@ describe('Memory Tool Schemas', () => {
         importance: 0.8,
         occurredAt: '2024-01-15T10:00:00Z',
         provenance: 'calendar_integration',
-        entityIds: [
-          '550e8400-e29b-41d4-a716-446655440000',
-          '550e8400-e29b-41d4-a716-446655440001',
-        ],
+        entityIds: ['550e8400-e29b-41d4-a716-446655440000', '550e8400-e29b-41d4-a716-446655440001'],
         entityRoles: {
           '550e8400-e29b-41d4-a716-446655440000': 'organizer',
           '550e8400-e29b-41d4-a716-446655440001': 'participant',
