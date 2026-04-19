@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 integrations/*/package-lock.json
+# The published TS client needs a committed lockfile for CI reproducibility
+# (npm ci requires it). Other integrations stay ignored.
+!integrations/typescript-client/package-lock.json
 
 # Build output
 dist/
