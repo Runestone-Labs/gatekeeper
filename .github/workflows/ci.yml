@@ -63,3 +63,6 @@ jobs:
 
       - name: Run tests
         run: npm run test:run
+
+      - name: Distribution readiness check
+        run: npm run distribution-check

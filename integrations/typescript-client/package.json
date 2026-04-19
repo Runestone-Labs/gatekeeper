@@ -20,7 +20,8 @@
     "build": "tsc",
     "test": "vitest",
     "test:run": "vitest run",
-    "prepublishOnly": "npm run build"
+    "distribution-check": "node scripts/distribution-check.mjs",
+    "prepublishOnly": "npm run build && npm run distribution-check"
   },
   "devDependencies": {
     "typescript": "^5.7.3",

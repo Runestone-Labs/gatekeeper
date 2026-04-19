@@ -32,6 +32,9 @@ jobs:
       - name: Run tests
         run: npm run test:run
 
+      - name: Distribution readiness check
+        run: npm run distribution-check
+
       - name: Publish to npm
         run: npm publish --access public --provenance
         env:
