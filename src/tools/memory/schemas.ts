@@ -35,7 +35,7 @@ export const MemoryQueryArgsSchema = z.object({
   evidenceForEntity: z.string().uuid().optional(),
   evidenceForEpisode: z.string().uuid().optional(),
 
-  limit: z.number().int().min(1).max(100).optional(),
+  limit: z.number().int().min(1).max(2000).optional(),
 });
 
 export type MemoryQueryArgs = z.infer<typeof MemoryQueryArgsSchema>;
