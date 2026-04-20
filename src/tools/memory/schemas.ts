@@ -28,6 +28,7 @@ export const MemoryQueryArgsSchema = z.object({
   episodeType: z.string().optional(),
   minImportance: z.number().min(0).max(1).optional(),
   since: z.string().datetime().optional(),
+  until: z.string().datetime().optional(),
   provenance: z.string().max(255).optional(),
   detailsContain: z.record(z.unknown()).optional(),
 

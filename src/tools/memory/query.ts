@@ -1,4 +1,4 @@
-import { eq, and, gte, sql } from 'drizzle-orm';
+import { eq, and, gte, lte, sql } from 'drizzle-orm';
 import { getDb, ageQuery, rawQuery, isDbAvailable } from '../../db/client.js';
 import { entities, episodes } from '../../db/schema/index.js';
 import type { MemoryQueryArgs } from './schemas.js';
@@ -177,6 +177,7 @@ export async function executeMemoryQuery(args: MemoryQueryArgs): Promise<ToolRes
       args.episodeType ||
       args.minImportance !== undefined ||
       args.since ||
+      args.until ||
       args.provenance ||
       args.detailsContain
     ) {
@@ -190,6 +191,9 @@ export async function executeMemoryQuery(args: MemoryQueryArgs): Promise<ToolRes
       }
       if (args.since) {
         conditions.push(gte(episodes.occurredAt, new Date(args.since)));
+      }
+      if (args.until) {
+        conditions.push(lte(episodes.occurredAt, new Date(args.until)));
       }
       if (args.provenance) {
         conditions.push(eq(episodes.provenance, args.provenance));
