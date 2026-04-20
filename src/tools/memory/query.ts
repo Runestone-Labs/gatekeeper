@@ -173,7 +173,13 @@ export async function executeMemoryQuery(args: MemoryQueryArgs): Promise<ToolRes
     }
 
     // Episode query
-    if (args.episodeType || args.minImportance !== undefined || args.since) {
+    if (
+      args.episodeType ||
+      args.minImportance !== undefined ||
+      args.since ||
+      args.provenance ||
+      args.detailsContain
+    ) {
       const conditions = [];
 
       if (args.episodeType) {
@@ -184,6 +190,17 @@ export async function executeMemoryQuery(args: MemoryQueryArgs): Promise<ToolRes
       }
       if (args.since) {
         conditions.push(gte(episodes.occurredAt, new Date(args.since)));
+      }
+      if (args.provenance) {
+        conditions.push(eq(episodes.provenance, args.provenance));
+      }
+      if (args.detailsContain) {
+        // JSONB containment: matches episodes whose `details` JSON object
+        // contains all provided key/value pairs. Enables filtering by
+        // e.g. { category: 'lab' } or { testName: 'Glucose' }.
+        conditions.push(
+          sql`${episodes.details} @> ${JSON.stringify(args.detailsContain)}::jsonb`,
+        );
       }
 
       const matchingEpisodes = await db
