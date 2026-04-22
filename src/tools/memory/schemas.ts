@@ -30,6 +30,14 @@ export const MemoryQueryArgsSchema = z.object({
   since: z.string().datetime().optional(),
   until: z.string().datetime().optional(),
   provenance: z.string().max(255).optional(),
+  /**
+   * Exclude episodes whose provenance is in this list. Useful for hiding
+   * high-volume telemetry (e.g. `cgm-sync`, `health-tracking`) from
+   * content-focused queries so the top-N isn't dominated by sensor data.
+   * Mutually compatible with `provenance` (AND semantics), but typically
+   * only one or the other is set.
+   */
+  notProvenance: z.array(z.string().max(255)).max(20).optional(),
   detailsContain: z.record(z.unknown()).optional(),
 
   // Evidence queries

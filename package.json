@@ -1,6 +1,6 @@
 {
   "name": "runestone-gatekeeper",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Policy-based gatekeeper for AI agent tool execution",
   "author": "Runestone Labs",
   "license": "Apache-2.0",

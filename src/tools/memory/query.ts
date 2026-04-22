@@ -1,4 +1,4 @@
-import { eq, and, gte, lte, sql } from 'drizzle-orm';
+import { eq, and, gte, lte, notInArray, sql } from 'drizzle-orm';
 import { getDb, ageQuery, rawQuery, isDbAvailable } from '../../db/client.js';
 import { entities, episodes } from '../../db/schema/index.js';
 import type { MemoryQueryArgs } from './schemas.js';
@@ -179,6 +179,7 @@ export async function executeMemoryQuery(args: MemoryQueryArgs): Promise<ToolRes
       args.since ||
       args.until ||
       args.provenance ||
+      (args.notProvenance && args.notProvenance.length > 0) ||
       args.detailsContain
     ) {
       const conditions = [];
@@ -197,6 +198,9 @@ export async function executeMemoryQuery(args: MemoryQueryArgs): Promise<ToolRes
       }
       if (args.provenance) {
         conditions.push(eq(episodes.provenance, args.provenance));
+      }
+      if (args.notProvenance && args.notProvenance.length > 0) {
+        conditions.push(notInArray(episodes.provenance, args.notProvenance));
       }
       if (args.detailsContain) {
         // JSONB containment: matches episodes whose `details` JSON object

@@ -71,6 +71,23 @@ describe('Memory Tool Schemas', () => {
       expect(result.success).toBe(true);
     });
 
+    it('should accept episode query with notProvenance exclusion list', () => {
+      const result = MemoryQueryArgsSchema.safeParse({
+        episodeType: 'observation',
+        notProvenance: ['cgm-sync', 'health-tracking'],
+        limit: 100,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject notProvenance list longer than 20', () => {
+      const result = MemoryQueryArgsSchema.safeParse({
+        episodeType: 'observation',
+        notProvenance: Array.from({ length: 21 }, (_, i) => `p${i}`),
+      });
+      expect(result.success).toBe(false);
+    });
+
     it('should accept attribute query', () => {
       const result = MemoryQueryArgsSchema.safeParse({
         attributeQuery: { status: 'active', priority: 'high' },

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-04-22
+
+### Added
+
+- **`memory.query` `notProvenance` filter** — exclude episodes whose provenance matches any entry in the list. Useful for hiding high-volume telemetry (`cgm-sync`, `health-tracking`, etc.) from content-focused queries so the top-N isn't dominated by sensor data. Server caps the list at 20 entries.
+- **Client: `MemoryQueryArgs` type** exported from `@runestone-labs/gatekeeper-client` for autocomplete when building `memory.query` payloads.
+
 ## [0.3.0] - 2026-02-06
 
 ### Added

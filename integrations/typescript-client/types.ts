@@ -188,6 +188,52 @@ export interface MemoryEvidenceResult {
   linkedEpisodes: number;
 }
 
+/**
+ * Arguments accepted by `memory.query`. All fields are optional; the
+ * server picks a query mode based on which fields are set. Mirrors
+ * `MemoryQueryArgsSchema` in the server's `src/tools/memory/schemas.ts`.
+ *
+ * Pass this object as the second arg to `callTool('memory.query', args)`:
+ * the client forwards it as-is, the server validates with Zod.
+ */
+export interface MemoryQueryArgs {
+  // Raw Cypher (advanced; traverses the AGE graph directly)
+  cypher?: string;
+
+  // Entity lookups
+  entityId?: string;
+  entityType?: string;
+  entityName?: string;
+  searchText?: string;
+  attributeQuery?: Record<string, unknown>;
+
+  // Neighborhood traversal
+  fromEntity?: string;
+  maxHops?: number;
+  relationTypes?: string[];
+
+  // Episode filters
+  episodeType?: string;
+  minImportance?: number;
+  since?: string;
+  until?: string;
+  provenance?: string;
+  /**
+   * Exclude episodes whose provenance is in this list. Useful for hiding
+   * high-volume telemetry (e.g. `cgm-sync`, `health-tracking`) from
+   * content-focused queries so the top-N isn't dominated by sensor data.
+   * Server caps the list at 20 entries.
+   */
+  notProvenance?: string[];
+  detailsContain?: Record<string, unknown>;
+
+  // Evidence lookups
+  evidenceForEntity?: string;
+  evidenceForEpisode?: string;
+
+  limit?: number;
+}
+
 /** Result from memory.query (varies by query type) */
 export interface MemoryQueryResult {
   type: 'entity' | 'entities' | 'evidence' | 'cypher' | 'neighborhood' | 'episodes' | 'search';
