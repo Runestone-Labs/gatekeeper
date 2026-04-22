@@ -206,9 +206,7 @@ export async function executeMemoryQuery(args: MemoryQueryArgs): Promise<ToolRes
         // JSONB containment: matches episodes whose `details` JSON object
         // contains all provided key/value pairs. Enables filtering by
         // e.g. { category: 'lab' } or { testName: 'Glucose' }.
-        conditions.push(
-          sql`${episodes.details} @> ${JSON.stringify(args.detailsContain)}::jsonb`,
-        );
+        conditions.push(sql`${episodes.details} @> ${JSON.stringify(args.detailsContain)}::jsonb`);
       }
 
       const matchingEpisodes = await db
