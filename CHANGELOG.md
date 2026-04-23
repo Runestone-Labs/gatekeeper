@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-04-23
+
+### Fixed
+
+- **Client: HTTP method type** — `HttpRequestArgs.method` narrowed from
+  `'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS'` to
+  `'GET' | 'POST'` to match the server's actual schema. Callers using other
+  methods were silently rejected at the server boundary; the type now
+  surfaces this at compile time.
+- **Client: `FilesWriteArgs.encoding`** — narrowed from `'utf8' | 'base64'` to
+  `'utf8'`. Base64 was never implemented server-side.
+- **Client README** — install instructions now reference
+  `npm install @runestone-labs/gatekeeper-client` instead of copy-paste.
+- **Docs** — corrected stale version strings across README, SECURITY.md,
+  AUDIT_LOGS.md, API.md, and MEMORY.md. Removed reference to a
+  non-existent `files.read` tool. Clarified that `/usage` aggregation works
+  with both jsonl and postgres sinks.
+
+### Added
+
+- **Client: `HttpRequestArgs.timeout_ms`** — per-call timeout override field
+  (clamped by `policy.max_timeout_ms` on the server).
+- **Docs: `docs/KG_PATTERNS.md`** — practical guide to using the memory
+  module: entity modeling, episode roles, evidence chains, provenance as
+  workflow tag, `notProvenance` for content/telemetry separation,
+  query-mode dispatch, Cypher gotchas, no-delete/consolidation model.
+- **Docs: "Practical Integration Patterns" in INTEGRATING_AGENTS.md** —
+  role-per-agent via principals, taint propagation, capability-token
+  minting flow, idempotent retries, dry-run preflight, wiring to Claude
+  Code / MCP / OpenClaw.
+- **Docs: "Non-obvious behaviors" in DEPLOY.md** — canonicalized-JSON deny
+  patterns, no policy hot reload, no memory delete, post-redirect SSRF
+  re-validation, GET-only redirects, response-header allowlist,
+  fire-and-forget approval notifications, budget aggregation source,
+  capability-token args-binding, `BASE_URL` for signed URLs, idempotency
+  TTL caveats.
+- **Docs: `/budget` section in POLICY_GUIDE.md** — documents the `budgets:`
+  block, `cost_usd` per tool, and how budget enforcement interacts with
+  policy decisions and capability tokens.
+- **Docs: MEMORY.md** — documents `provenance`, `notProvenance`,
+  `detailsContain`, and `until` filters on `memory.query`; raised `limit`
+  cap to 2000; added `prediction_market` and `thesis` entity types.
+- **Docs: SECURITY.md** — updated supported versions to 0.3.x.
+
 ## [0.3.1] - 2026-04-22
 
 ### Added
@@ -123,7 +167,9 @@ Initial public release.
 - SSRF protection blocks access to private IP ranges
 - Secrets are redacted from audit logs
 
-[Unreleased]: https://github.com/Runestone-Labs/gatekeeper/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Runestone-Labs/gatekeeper/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/Runestone-Labs/gatekeeper/compare/v0.3.1...v0.3.2
+[0.3.1]: https://github.com/Runestone-Labs/gatekeeper/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Runestone-Labs/gatekeeper/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Runestone-Labs/gatekeeper/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Runestone-Labs/gatekeeper/releases/tag/v0.1.0
