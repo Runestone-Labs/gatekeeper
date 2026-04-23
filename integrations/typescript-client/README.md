@@ -5,14 +5,13 @@ A minimal, framework-agnostic TypeScript client for [Runestone Gatekeeper](https
 ## Installation
 
 ```bash
-# Copy to your project or import directly
-cp -r integrations/typescript-client ./gatekeeper-client
+npm install @runestone-labs/gatekeeper-client
 ```
 
 ## Usage
 
 ```typescript
-import { GatekeeperClient } from './gatekeeper-client';
+import { GatekeeperClient } from '@runestone-labs/gatekeeper-client';
 
 // Initialize client
 const gk = new GatekeeperClient({
@@ -61,7 +60,7 @@ Write a file.
 await gk.filesWrite({
   path: '/tmp/output.txt',
   content: 'Hello, world!',
-  encoding: 'utf8' // or 'base64'
+  encoding: 'utf8'
 });
 ```
 

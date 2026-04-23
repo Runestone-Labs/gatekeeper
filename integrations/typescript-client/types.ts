@@ -99,7 +99,7 @@ export interface ShellExecResult {
 export interface FilesWriteArgs {
   path: string;
   content: string;
-  encoding?: 'utf8' | 'base64';
+  encoding?: 'utf8';
 }
 
 export interface FilesWriteResult {
@@ -109,9 +109,15 @@ export interface FilesWriteResult {
 
 export interface HttpRequestArgs {
   url: string;
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS';
+  method: 'GET' | 'POST';
   headers?: Record<string, string>;
   body?: string;
+  /**
+   * Per-call timeout override in milliseconds. Clamped by the tool policy's
+   * `max_timeout_ms`; falls back to the policy default when omitted. Useful
+   * for slow upstreams like Claude/OpenAI API calls.
+   */
+  timeout_ms?: number;
 }
 
 export interface HttpRequestResult {
