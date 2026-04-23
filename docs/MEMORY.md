@@ -2,6 +2,11 @@
 
 Graph-based persistent memory for AI assistants using PostgreSQL with Apache AGE extension.
 
+> **Looking for usage patterns, not the API surface?** See
+> [KG_PATTERNS.md](KG_PATTERNS.md) for entity modeling, episode roles,
+> evidence chains, provenance conventions, query-mode dispatch, and the
+> no-delete/consolidation model.
+
 ## Overview
 
 The memory system enables agents to:
@@ -112,7 +117,7 @@ Create or update an entity in SQL.
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `id` | UUID | No | If provided, updates existing entity |
-| `type` | enum | Yes | `person`, `organization`, `project`, `concept`, `place`, `event`, `document` |
+| `type` | enum | Yes | `person`, `organization`, `project`, `concept`, `place`, `event`, `document`, `prediction_market`, `thesis` |
 | `name` | string | Yes | Entity name (max 255 chars) |
 | `description` | string | No | Longer description |
 | `attributes` | object | No | Arbitrary key-value pairs |
@@ -146,7 +151,7 @@ Create or update an entity in SQL.
     "attributes": {
       "language": "TypeScript",
       "status": "active",
-      "version": "0.2.0"
+      "version": "0.3.1"
     }
   }
 }
@@ -348,10 +353,14 @@ Query entities and relationships. Supports multiple query modes.
 | `cypher` | string | Raw Cypher query |
 | `episodeType` | string | Query episodes by type |
 | `minImportance` | number | Filter episodes by importance |
-| `since` | datetime | Filter episodes by date |
+| `since` | datetime | Lower bound (inclusive) on `occurredAt` |
+| `until` | datetime | Upper bound (exclusive) on `occurredAt` — pairs with `since` to form a time window |
+| `provenance` | string | Filter episodes by exact provenance match |
+| `notProvenance` | string[] | Exclude episodes whose provenance is in this list (max 20 entries). Useful for hiding high-volume telemetry like `cgm-sync` or `health-tracking` from content-focused queries |
+| `detailsContain` | object | JSONB containment match on episode `details` (Postgres `@>` operator) |
 | `evidenceForEntity` | UUID | Fetch evidence linked to an entity |
 | `evidenceForEpisode` | UUID | Fetch evidence linked to an episode |
-| `limit` | number | Max results (1-100, default 50) |
+| `limit` | number | Max results (1-2000, default 50) |
 
 **Example - Full-Text Search (NEW):**
 ```json
@@ -403,6 +412,30 @@ Returns entities where name or description contains words starting with "gate" (
     "minImportance": 0.7,
     "since": "2026-02-01T00:00:00Z",
     "limit": 10
+  }
+}
+```
+
+**Example - Episode Query (content-only, excluding telemetry):**
+```json
+{
+  "args": {
+    "episodeType": "observation",
+    "since": "2026-04-01T00:00:00Z",
+    "until": "2026-05-01T00:00:00Z",
+    "notProvenance": ["cgm-sync", "health-tracking", "portfolio-sync"],
+    "limit": 200
+  }
+}
+```
+
+**Example - Episode Query (JSONB details containment):**
+```json
+{
+  "args": {
+    "episodeType": "event",
+    "detailsContain": {"venue": "polymarket", "has_opinion": true},
+    "limit": 50
   }
 }
 ```
@@ -487,6 +520,8 @@ Log an event, decision, or observation.
 | `place` | Physical or virtual locations | San Francisco, GitHub |
 | `event` | Scheduled occurrences | Meetings, releases |
 | `document` | Files, articles, specs | README, RFC |
+| `prediction_market` | A tradeable market | Polymarket/Kalshi contract |
+| `thesis` | A structured research claim or position | Signal-monitor assessment |
 
 ### Episode Types
 

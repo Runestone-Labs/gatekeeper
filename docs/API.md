@@ -40,7 +40,7 @@ Service health + runtime info. Cheap to call; wire to your uptime monitor.
 **Response**
 ```json
 {
-  "version": "0.3.0",
+  "version": "0.3.1",
   "policyHash": "sha256:1ddd938c...",
   "uptime": 1234,
   "pendingApprovals": 3,
@@ -69,7 +69,7 @@ Service health + runtime info. Cheap to call; wire to your uptime monitor.
 The core endpoint. Every agent tool call comes here. Gatekeeper evaluates policy, optionally routes to human approval, optionally enforces budget, then either executes the tool or returns an approval-required / denied response.
 
 **Path params**
-- `toolName` — one of the tools registered in policy (`shell.exec`, `http.request`, `files.write`, `files.read`, `memory.upsert`, `memory.query`, `memory.episode`, `memory.evidence`, `memory.unlink`).
+- `toolName` — one of the tools registered in policy. Core tools: `shell.exec`, `http.request`, `files.write`. Memory tools (registered only when `DATABASE_URL` is set): `memory.upsert`, `memory.link`, `memory.unlink`, `memory.query`, `memory.episode`, `memory.evidence`.
 
 **Request body**
 ```json
@@ -202,7 +202,7 @@ Query the audit log. Requires `AUDIT_SINK=postgres` (the jsonl sink doesn't expo
       "humanExplanation": "...",
       "remediation": null,
       "policyHash": "sha256:...",
-      "gatekeeperVersion": "0.3.0",
+      "gatekeeperVersion": "0.3.1",
       "approvalId": null,
       "origin": "user_direct",
       "taint": [],
@@ -375,7 +375,7 @@ Common HTTP codes:
 - `409` — idempotency conflict (same key, different args hash; or approval already consumed)
 - `410` — approval expired or consumed
 - `500` — internal error; check logs
-- `501` — feature not supported by configured provider (e.g. `/usage` with `jsonl` sink used to be unsupported before in-memory aggregation was added)
+- `501` — feature not supported by the configured provider (e.g. an audit sink that doesn't implement `summarizeUsage`). Both `jsonl` and `postgres` sinks support aggregation as of v0.3.x.
 - `503` — dependency unavailable (e.g. Postgres audit sink can't reach the database)
 
 ---

@@ -96,7 +96,7 @@ Each file contains one JSON object per line (JSONL format).
   "reasonCode": "POLICY_ALLOW",
   "humanExplanation": "Policy allows \"http.request\".",
   "policyHash": "sha256:abc123...",
-  "gatekeeperVersion": "0.1.0"
+  "gatekeeperVersion": "0.3.1"
 }
 ```
 
@@ -119,7 +119,7 @@ Each file contains one JSON object per line (JSONL format).
   "reasonCode": "TOOL_DENY_PATTERN",
   "humanExplanation": "Request matches a deny pattern configured for this tool.",
   "policyHash": "sha256:abc123...",
-  "gatekeeperVersion": "0.1.0"
+  "gatekeeperVersion": "0.3.1"
 }
 ```
 
@@ -142,7 +142,7 @@ Each file contains one JSON object per line (JSONL format).
   "reasonCode": "POLICY_APPROVAL_REQUIRED",
   "humanExplanation": "Policy requires human approval before running \"shell.exec\".",
   "policyHash": "sha256:abc123...",
-  "gatekeeperVersion": "0.1.0",
+  "gatekeeperVersion": "0.3.1",
   "approvalId": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
@@ -166,7 +166,7 @@ Each file contains one JSON object per line (JSONL format).
   "reasonCode": "APPROVAL_APPROVED",
   "humanExplanation": "The approval request was approved and executed.",
   "policyHash": "sha256:abc123...",
-  "gatekeeperVersion": "0.1.0",
+  "gatekeeperVersion": "0.3.1",
   "approvalId": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
@@ -193,7 +193,7 @@ Each file contains one JSON object per line (JSONL format).
   },
   "riskFlags": [],
   "policyHash": "sha256:abc123...",
-  "gatekeeperVersion": "0.1.0",
+  "gatekeeperVersion": "0.3.1",
   "approvalId": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```

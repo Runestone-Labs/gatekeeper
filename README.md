@@ -326,10 +326,11 @@ curl http://127.0.0.1:3847/health
 Response:
 ```json
 {
-  "version": "0.3.0",
+  "version": "0.3.1",
   "policyHash": "sha256:abc123...",
   "uptime": 3600,
   "pendingApprovals": 2,
+  "demoMode": false,
   "providers": {
     "approval": "local",
     "policy": "yaml"
@@ -421,7 +422,7 @@ All requests are logged via the configured audit sink. Default (jsonl) writes to
   "argsSummary": "{\"command\":\"ls -la\"}",
   "riskFlags": [],
   "policyHash": "sha256:abc123...",
-  "gatekeeperVersion": "0.1.0"
+  "gatekeeperVersion": "0.3.1"
 }
 ```
 
@@ -566,10 +567,12 @@ See [docs/MEMORY.md](docs/MEMORY.md) for setup and full API reference.
 ## Documentation
 
 ### Guides
-- [docs/MEMORY.md](docs/MEMORY.md) - Graph-based memory system setup and usage
-- [docs/POLICY_GUIDE.md](docs/POLICY_GUIDE.md) - How to write and customize policies
+- [docs/POLICY_GUIDE.md](docs/POLICY_GUIDE.md) - How to write and customize policies (including budgets)
 - [docs/APPROVALS.md](docs/APPROVALS.md) - Approval workflow details and troubleshooting
 - [docs/AUDIT_LOGS.md](docs/AUDIT_LOGS.md) - Audit log format and querying
+- [docs/MEMORY.md](docs/MEMORY.md) - Graph-based memory system setup and API reference
+- [docs/KG_PATTERNS.md](docs/KG_PATTERNS.md) - Practical patterns for using the memory module (entities, episodes, evidence, provenance conventions)
+- [docs/DEPLOY.md](docs/DEPLOY.md) - Production deployment + non-obvious operational behaviors
 
 ### Reference
 - [THREAT_MODEL.md](THREAT_MODEL.md) - Security assumptions and non-goals

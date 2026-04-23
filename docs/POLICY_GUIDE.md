@@ -202,9 +202,14 @@ tools:
       - "169.254.0.0/16"   # Cloud metadata
 
     # Limits
-    timeout_ms: 30000
+    timeout_ms: 30000           # Default per-call timeout
+    max_timeout_ms: 180000      # Ceiling for per-call `args.timeout_ms` overrides
     max_body_bytes: 1048576
     max_redirects: 3
+
+    # Optional: nominal USD cost per successful call. When set, feeds
+    # the `budgets:` enforcement below. Leave unset for free tools.
+    # cost_usd: 0.001
 ```
 
 | Option | Type | Description |
@@ -213,9 +218,16 @@ tools:
 | `allowed_domains` | string[] | Allowed domains (exact or suffix match) |
 | `deny_domains` | string[] | Domains that are blocked |
 | `deny_ip_ranges` | string[] | IP ranges blocked (SSRF protection) |
-| `timeout_ms` | number | Request timeout |
+| `timeout_ms` | number | Default request timeout in milliseconds |
+| `max_timeout_ms` | number | Upper bound on per-call `args.timeout_ms` overrides — callers requesting a higher timeout are silently clamped |
 | `max_body_bytes` | number | Maximum response body size |
 | `max_redirects` | number | Maximum number of redirects |
+| `cost_usd` | number | Nominal USD cost per successful call (participates in `budgets:` enforcement) |
+
+Per-call `args.timeout_ms` lets a caller request a longer timeout for known slow
+upstreams (e.g. Claude API, large LLM completions). The server uses
+`min(args.timeout_ms, policy.max_timeout_ms ?? policy.timeout_ms)` so a caller
+can't escape the policy cap.
 
 ---
 
@@ -397,6 +409,50 @@ GATEKEEPER_URL=http://127.0.0.1:3847 npx tsx integrations/live-test.ts
 
 ---
 
+## Budgets (Cost-Aware Enforcement)
+
+Budgets cap how much USD a given actor (by name and/or role) can accrue within
+a rolling window. The gatekeeper sums `cost_usd` across matched tool calls in
+the window and either blocks further calls (hard mode) or logs a risk flag
+(soft mode) once the cap is hit.
+
+```yaml
+budgets:
+  - name: researcher-daily
+    match:
+      actor_role: researcher
+    window: day          # hour | day | week
+    max_usd: 5.00
+    mode: hard           # hard (default) rejects with BUDGET_EXCEEDED
+                         # soft permits but adds a `budget_soft_exceeded` risk flag
+
+  - name: pm-thesis-hourly
+    match:
+      actor_name: pm-thesis-research
+    window: hour
+    max_usd: 1.00
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Descriptive label surfaced in denial reasons and `/budget` responses |
+| `match.actor_name` | string | Optional — if set, only matches calls from this actor name |
+| `match.actor_role` | string | Optional — if set, only matches calls from this actor role. At least one of `actor_name`/`actor_role` must be set |
+| `window` | enum | `hour`, `day`, or `week`. Window is rolling, anchored at request time |
+| `max_usd` | number | USD cap. Sums `cost_usd` across tool calls in the window |
+| `mode` | enum | `hard` (default) = deny once exceeded. `soft` = permit + flag |
+
+**How it interacts with other rules:**
+- Budgets are evaluated *after* the base policy decision. A deny from policy
+  short-circuits; a policy `allow`/`approve` can still be converted to
+  `BUDGET_EXCEEDED` deny if the cap is hit.
+- Tools without a `cost_usd` contribute zero to the running total. Set
+  `cost_usd` on the tools you want metered (typically `http.request`).
+- Spend is computed from the same audit log that the `/audit` endpoint
+  reads, so `AUDIT_SINK=postgres` or `AUDIT_SINK=jsonl` both work.
+- `GET /budget` returns the current spend vs cap for each rule, useful for
+  dashboards and for callers probing before making a call.
+
 ## Evaluation Order
 
 When a request arrives, Gatekeeper evaluates in this order:
@@ -404,7 +460,11 @@ When a request arrives, Gatekeeper evaluates in this order:
 1. **Unknown tool check** - If tool isn't in policy, deny
 2. **Deny patterns** - If any pattern matches, deny
 3. **Tool-specific validation** - Check constraints (paths, methods, etc.)
-4. **Return decision** - allow, approve, or deny
+4. **Budget check** - If the base decision is allow/approve and a matching
+   `budgets:` rule exceeds cap, convert to `BUDGET_EXCEEDED` deny
+5. **Capability token** - If a valid `capabilityToken` is present, convert
+   `approve` to `allow`
+6. **Return decision** - allow, approve, or deny
 
 Deny patterns are checked first, so a matching pattern will deny even if the base decision is `allow`.
 

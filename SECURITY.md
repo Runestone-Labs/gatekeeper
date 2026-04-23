@@ -57,11 +57,17 @@ behind an authenticated reverse proxy.
 
 ## Supported Versions
 
+Security fixes land on the latest minor release. Pre-1.0, only the most recent
+minor line is supported; older lines receive fixes at the maintainer's discretion.
+
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.1.x   | Yes                |
+| 0.3.x   | Yes                |
+| < 0.3   | No                 |
 
-We will backport security fixes to supported versions.
+When reporting, please include the `gatekeeperVersion` field from a recent
+audit log entry (or the `version` from `GET /health`) so we can reproduce
+against the exact release.
 
 ## Security Design
 
