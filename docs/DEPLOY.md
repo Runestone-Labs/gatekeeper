@@ -300,6 +300,148 @@ Rolling back: stop the service, restore data + schema from the snapshot, redeplo
 
 ---
 
+## Non-obvious behaviors
+
+Things that often surprise operators on the first deploy. None of these are
+bugs — they're design choices with reasons — but they bite if you don't know
+them.
+
+### Deny patterns match canonicalized JSON, not raw commands
+
+`deny_patterns` are regexed against the canonicalized JSON of the request
+args, not the shell command or URL directly. Canonicalization sorts object
+keys and JSON-stringifies the whole args object. So:
+
+```yaml
+deny_patterns:
+  - "rm -rf"      # matches "command":"rm -rf /"
+  - "> /dev/"     # matches across any arg field
+```
+
+Patterns are **case-insensitive**. Whitespace differences in the original
+input survive canonicalization, so `rm  -rf` (two spaces) will *not* match
+`rm -rf` (one space). If you care about whitespace-evasion, use a
+whitespace-tolerant pattern: `rm\\s+-rf`.
+
+### Policy is loaded at startup — no hot reload
+
+The policy file is read once when the process starts. Editing `policy.yaml`
+while the server is running has no effect until you restart. The `/health`
+endpoint's `policyHash` field is your source of truth for which policy is
+live.
+
+If you need hot reload, restart the service on file change (nodemon, systemd
+`PathChanged`, or a file-watcher sidecar). The audit log's `policyHash` will
+tick over at the restart boundary.
+
+### There is no memory delete
+
+The memory module has no delete endpoint. `memory.upsert` with an `id`
+updates in place; episodes and evidence are append-only.
+
+This is intentional for audit integrity. If you need to retract something,
+write a correction episode (see
+[KG_PATTERNS.md](KG_PATTERNS.md#the-no-delete-model)) or, for GDPR right-to-be-forgotten, issue direct SQL against
+the `entities`/`episodes` tables and record the deletion in a separate
+compliance log.
+
+### SSRF protection re-validates after redirects
+
+`http.request` resolves the hostname and blocks private IPs before the
+first request. After any 3xx redirect, it resolves the *new* hostname and
+blocks again. This defeats DNS-rebinding and redirect-to-internal attacks.
+
+Redirects are also **GET-only** — a `POST` that gets a 301/302/307/308 is
+rejected rather than followed. If you need to follow a POST redirect,
+handle it in the caller.
+
+### Response header allowlist (not blocklist)
+
+Only a small set of headers is returned from `http.request`:
+`content-type`, `content-length`, `cache-control`, `etag`, `last-modified`,
+`date`, `x-request-id`. Everything else is dropped before returning to the
+agent.
+
+If your integration depends on a custom header (e.g. `x-rate-limit-remaining`),
+you won't see it without patching `SAFE_RESPONSE_HEADERS` in
+`src/tools/core/httpRequest.ts`. PR welcome if this is common.
+
+### Approval-provider failures don't block requests
+
+When a tool decision is `approve`, the server creates the approval record
+and immediately returns 202 to the caller. Sending the notification (Slack
+webhook, etc.) happens in a fire-and-forget promise. If Slack is down, the
+approval still exists — you just won't get pinged. The approver can still
+hit the approve/deny URL directly.
+
+Check logs for `Failed to send approval notification` to catch provider
+outages. Consider adding an uptime check against your Slack webhook
+separately.
+
+### Budget enforcement reads from the audit log
+
+Current spend is computed by scanning the active audit sink for calls in
+the window, summing `cost_usd` from the tool policy. Implications:
+
+- `AUDIT_SINK=jsonl`: budget lookups do a file scan each request. Fine up
+  to a few thousand calls per window. Scales badly beyond that.
+- `AUDIT_SINK=postgres`: single GROUP BY query per budget rule. Scales
+  comfortably.
+- If you swap sinks mid-flight, spend history is lost — the new sink starts
+  empty.
+
+For production multi-agent deployments with budgets, use Postgres.
+
+### Capability tokens are bound to exact args
+
+A capability token's `argsHash` is computed over the canonicalized args at
+mint time. *Any* change to the args — even an added optional field, a
+reordered key, or a whitespace difference in a string — produces a
+different hash, and the token is rejected with `CAPABILITY_ARGS_MISMATCH`.
+
+This is the intended behavior: a token that pre-authorizes "run `pg_dump
+--table=users`" should not also authorize "run `pg_dump --table=users
+--output=/tmp/stolen`". If you need flexibility, mint tokens narrowly and
+often, or move the flexible operation to a non-`approve` tool.
+
+### Approval URLs use `BASE_URL`, not request host
+
+Signed approval URLs are built with `BASE_URL` as their prefix. If you
+deploy behind a reverse proxy and forget to set `BASE_URL` to the
+public-facing hostname, the URLs will point at `http://localhost:3847` and
+approvers hitting them from outside will get connection errors.
+
+The HMAC signature is over the URL path + expiry, not the hostname, so
+the signature itself is portable — only the prefix is wrong. Fix by
+setting `BASE_URL=https://your-public-hostname.example.com` and restarting.
+
+### The /audit endpoint requires Postgres
+
+`GET /audit` queries the `audit_logs` table directly via Drizzle. It
+requires `DATABASE_URL` to be set *and* returns empty if your audit sink
+is `jsonl` (the table is there but unused). If you want `/audit` to work,
+set `AUDIT_SINK=postgres`.
+
+The `/usage` and `/budget` endpoints work with either sink — they go
+through the sink's `summarizeUsage()` method, which is implemented for
+both `jsonl` (in-memory scan) and `postgres` (SQL aggregation).
+
+### Idempotency records have no TTL
+
+Idempotency records are stored in `$DATA_DIR/idempotency/` and kept
+indefinitely. On a very busy server this directory grows unboundedly. If
+that's a concern, add a cron job to delete records older than a few days:
+
+```bash
+find "$DATA_DIR/idempotency" -name '*.json' -mtime +7 -delete
+```
+
+Losing an idempotency record means a retry with the same key will execute
+a second time. If your retry semantics depend on this, keep the TTL
+generous.
+
+---
+
 ## Getting help
 
 - Bugs and features: [GitHub Issues](https://github.com/Runestone-Labs/gatekeeper/issues)
