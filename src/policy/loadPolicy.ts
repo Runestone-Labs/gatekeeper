@@ -129,9 +129,11 @@ function normalizeSensitiveBoundaries(value: unknown): SensitiveBoundaryRule[] |
       throw new Error(`sensitive_boundaries[${id}] requires non-empty tools[]`);
     }
 
-    const matchRaw = r.match && typeof r.match === 'object' ? (r.match as Record<string, unknown>) : null;
+    const matchRaw =
+      r.match && typeof r.match === 'object' ? (r.match as Record<string, unknown>) : null;
     if (!matchRaw) throw new Error(`sensitive_boundaries[${id}] missing match{}`);
-    const command_regex = typeof matchRaw.command_regex === 'string' ? matchRaw.command_regex : undefined;
+    const command_regex =
+      typeof matchRaw.command_regex === 'string' ? matchRaw.command_regex : undefined;
     const path_regex = typeof matchRaw.path_regex === 'string' ? matchRaw.path_regex : undefined;
     if (!command_regex && !path_regex) {
       throw new Error(
@@ -154,8 +156,7 @@ function normalizeSensitiveBoundaries(value: unknown): SensitiveBoundaryRule[] |
     if (!category) throw new Error(`sensitive_boundaries[${id}] missing category`);
 
     const resource_class = typeof r.resource_class === 'string' ? r.resource_class : undefined;
-    if (!resource_class)
-      throw new Error(`sensitive_boundaries[${id}] missing resource_class`);
+    if (!resource_class) throw new Error(`sensitive_boundaries[${id}] missing resource_class`);
 
     const risk = typeof r.risk === 'string' ? (r.risk as RiskLevel) : undefined;
     if (!risk || !allowedRisks.includes(risk)) {

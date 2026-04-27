@@ -284,8 +284,7 @@ describe('default rule pack — per-rule coverage', () => {
       const result = evaluateSensitiveBoundaries(
         'shell.exec',
         {
-          command:
-            'ls "/Users/dev/Library/Application Support/Google/Chrome/Default/Login Data"',
+          command: 'ls "/Users/dev/Library/Application Support/Google/Chrome/Default/Login Data"',
         },
         DEFAULT_SENSITIVE_BOUNDARIES
       );
@@ -296,8 +295,7 @@ describe('default rule pack — per-rule coverage', () => {
       const result = evaluateSensitiveBoundaries(
         'shell.exec',
         {
-          command:
-            'ls "/Users/dev/Library/Application Support/Firefox/Profiles/abc123.default"',
+          command: 'ls "/Users/dev/Library/Application Support/Firefox/Profiles/abc123.default"',
         },
         DEFAULT_SENSITIVE_BOUNDARIES
       );
@@ -308,8 +306,7 @@ describe('default rule pack — per-rule coverage', () => {
       const result = evaluateSensitiveBoundaries(
         'shell.exec',
         {
-          command:
-            'rm -rf "/Users/dev/Library/Application Support/Google/Chrome/Default"',
+          command: 'rm -rf "/Users/dev/Library/Application Support/Google/Chrome/Default"',
         },
         DEFAULT_SENSITIVE_BOUNDARIES
       );
@@ -400,11 +397,7 @@ describe('boundary check ordering inside evaluateTool', () => {
   });
 
   it('boundary check still runs even when default tool decision is allow', () => {
-    const result = evaluateTool(
-      'shell.exec',
-      { command: 'cat ~/.ssh/id_rsa' },
-      allowAllPolicy
-    );
+    const result = evaluateTool('shell.exec', { command: 'cat ~/.ssh/id_rsa' }, allowAllPolicy);
     expect(result.decision).toBe('deny');
     expect(result.riskFlags).toContain('boundary:ssh-private-key');
   });

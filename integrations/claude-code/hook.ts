@@ -70,8 +70,7 @@ function readConfig(): {
     agentName: process.env.GATEKEEPER_AGENT_NAME ?? 'claude-code',
     agentRole: process.env.GATEKEEPER_AGENT_ROLE ?? 'claude-code',
     failClosed:
-      process.env.GATEKEEPER_FAIL_CLOSED === '1' ||
-      process.env.GATEKEEPER_FAIL_CLOSED === 'true',
+      process.env.GATEKEEPER_FAIL_CLOSED === '1' || process.env.GATEKEEPER_FAIL_CLOSED === 'true',
     timeoutMs: Number.parseInt(process.env.GATEKEEPER_TIMEOUT_MS ?? '2000', 10),
     debug: process.env.GATEKEEPER_DEBUG === '1',
   };
@@ -124,10 +123,7 @@ export function mapClaudeCodeTool(
   }
 }
 
-function pickFields(
-  obj: Record<string, unknown>,
-  fields: string[]
-): Record<string, unknown> {
+function pickFields(obj: Record<string, unknown>, fields: string[]): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const key of fields) {
     if (obj[key] !== undefined) out[key] = obj[key];
@@ -157,15 +153,12 @@ export async function evaluate(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), opts.timeoutMs);
   try {
-    const res = await fetch(
-      `${baseUrl.replace(/\/$/, '')}/tool/${encodeURIComponent(toolName)}`,
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      }
-    );
+    const res = await fetch(`${baseUrl.replace(/\/$/, '')}/tool/${encodeURIComponent(toolName)}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
     if (!res.ok) {
       throw new Error(`Gatekeeper returned HTTP ${res.status}`);
     }
@@ -189,7 +182,9 @@ export function buildHookResponse(
   }
 
   const lines: string[] = [];
-  lines.push(`Gatekeeper ${evaluation.decision === 'deny' ? 'denied' : 'requires approval for'} this tool call.`);
+  lines.push(
+    `Gatekeeper ${evaluation.decision === 'deny' ? 'denied' : 'requires approval for'} this tool call.`
+  );
   if (evaluation.humanExplanation) lines.push(evaluation.humanExplanation);
   if (evaluation.remediation) lines.push(evaluation.remediation);
   if (evaluation.reasonCode) lines.push(`(reasonCode: ${evaluation.reasonCode})`);

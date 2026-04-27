@@ -160,11 +160,16 @@ describe('evaluate (HTTP round-trip)', () => {
     mock.status = 500;
     mock.response = { error: 'oops' };
     await expect(
-      evaluate(mock.baseUrl(), 'shell.exec', { command: 'ls' }, {
-        agentName: 'a',
-        agentRole: 'a',
-        timeoutMs: 2000,
-      })
+      evaluate(
+        mock.baseUrl(),
+        'shell.exec',
+        { command: 'ls' },
+        {
+          agentName: 'a',
+          agentRole: 'a',
+          timeoutMs: 2000,
+        }
+      )
     ).rejects.toThrow(/HTTP 500/);
   });
 });
@@ -200,7 +205,7 @@ describe('run (full hook lifecycle, mocked Gatekeeper)', () => {
       reasonCode: 'BOUNDARY_REQUIRES_APPROVAL',
       humanExplanation: 'Inspecting macOS Keychain entries crosses a sensitive local boundary.',
       remediation:
-        'Use a throwaway Chromium profile with --user-data-dir=$(mktemp -d) and --use-mock-keychain instead of inspecting the user\'s Keychain.',
+        "Use a throwaway Chromium profile with --user-data-dir=$(mktemp -d) and --use-mock-keychain instead of inspecting the user's Keychain.",
     };
     const result = await run(
       JSON.stringify({
@@ -235,9 +240,7 @@ describe('run (full hook lifecycle, mocked Gatekeeper)', () => {
   it('fails open by default when server is unreachable', async () => {
     process.env.GATEKEEPER_BASE_URL = 'http://127.0.0.1:1'; // closed port
     delete process.env.GATEKEEPER_FAIL_CLOSED;
-    const result = await run(
-      JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'ls' } })
-    );
+    const result = await run(JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'ls' } }));
     expect(result.exit).toBe(0);
     expect(result.stdout).toBeUndefined();
   });

@@ -38,8 +38,7 @@ export const DEFAULT_SENSITIVE_BOUNDARIES: SensitiveBoundaryRule[] = [
     effect: 'deny',
     tools: ['shell.exec'],
     match: {
-      command_regex:
-        '^\\s*security\\s+delete-(generic-password|internet-password|certificate)\\b',
+      command_regex: '^\\s*security\\s+delete-(generic-password|internet-password|certificate)\\b',
     },
     category: 'credential_store_destruction',
     resource_class: 'credential_store',
@@ -59,7 +58,7 @@ export const DEFAULT_SENSITIVE_BOUNDARIES: SensitiveBoundaryRule[] = [
     risk: 'high',
     message: 'Inspecting macOS Keychain entries crosses a sensitive local boundary.',
     safer_alternative:
-      'Use a throwaway Chromium profile with `--user-data-dir=$(mktemp -d)` and `--use-mock-keychain` instead of inspecting the user\'s Keychain.',
+      "Use a throwaway Chromium profile with `--user-data-dir=$(mktemp -d)` and `--use-mock-keychain` instead of inspecting the user's Keychain.",
   },
 
   // ---------- SSH keys ----------
@@ -209,8 +208,7 @@ export const DEFAULT_SENSITIVE_BOUNDARIES: SensitiveBoundaryRule[] = [
     category: 'destructive_browser_profile_modification',
     resource_class: 'browser_profile',
     risk: 'critical',
-    message:
-      'Deleting browser profile data destroys sessions, cookies, and saved credentials.',
+    message: 'Deleting browser profile data destroys sessions, cookies, and saved credentials.',
   },
   {
     id: 'browser-profile-chromium',
@@ -223,10 +221,9 @@ export const DEFAULT_SENSITIVE_BOUNDARIES: SensitiveBoundaryRule[] = [
     category: 'browser_profile_access',
     resource_class: 'browser_profile',
     risk: 'high',
-    message:
-      'Chromium-family browser profiles contain cookies, sessions, and credential metadata.',
+    message: 'Chromium-family browser profiles contain cookies, sessions, and credential metadata.',
     safer_alternative:
-      'Use a disposable profile via `--user-data-dir=$(mktemp -d)` instead of touching the user\'s default profile.',
+      "Use a disposable profile via `--user-data-dir=$(mktemp -d)` instead of touching the user's default profile.",
   },
   {
     id: 'browser-profile-firefox',
@@ -240,7 +237,7 @@ export const DEFAULT_SENSITIVE_BOUNDARIES: SensitiveBoundaryRule[] = [
     risk: 'high',
     message: 'Firefox profiles contain cookies, sessions, and credential metadata.',
     safer_alternative:
-      'Use a disposable profile directory rather than the user\'s default Firefox profile.',
+      "Use a disposable profile directory rather than the user's default Firefox profile.",
   },
 
   // ---------- Broad discovery ----------
@@ -257,7 +254,8 @@ export const DEFAULT_SENSITIVE_BOUNDARIES: SensitiveBoundaryRule[] = [
     category: 'broad_secret_search',
     resource_class: 'unknown_sensitive',
     risk: 'medium',
-    message: 'Recursively searching the home directory for secret-like strings is high-blast-radius.',
+    message:
+      'Recursively searching the home directory for secret-like strings is high-blast-radius.',
     safer_alternative:
       'Scope the search to a specific subdirectory you know contains the file you need.',
   },

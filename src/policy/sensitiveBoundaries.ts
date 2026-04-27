@@ -112,9 +112,7 @@ function buildEvaluation(rule: SensitiveBoundaryRule): PolicyEvaluation {
   const remediationParts: string[] = [];
   if (rule.safer_alternative) remediationParts.push(rule.safer_alternative);
   if (decision === 'approve') {
-    remediationParts.push(
-      'If this is intentional, request human approval to proceed.'
-    );
+    remediationParts.push('If this is intentional, request human approval to proceed.');
   } else {
     remediationParts.push(
       'If you genuinely need this, the user must run it manually outside the agent.'
