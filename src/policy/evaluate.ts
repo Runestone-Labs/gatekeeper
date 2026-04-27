@@ -1,6 +1,8 @@
 import { basename, extname } from 'node:path';
 import { Policy, PolicyEvaluation, ToolPolicy, Origin, ContextRef, Actor } from '../types.js';
 import { canonicalize, isPathWithin, resolvePath } from '../utils.js';
+import { evaluateSensitiveBoundaries } from './sensitiveBoundaries.js';
+import { DEFAULT_SENSITIVE_BOUNDARIES } from './sensitiveBoundaryDefaults.js';
 
 /**
  * v1 envelope subset for evaluation.
@@ -51,6 +53,17 @@ export function evaluateTool(
     if (taintViolation) {
       return taintViolation;
     }
+  }
+
+  // Sensitive-boundary rules guard local resources (Keychain, SSH keys, cloud
+  // creds, browser profiles, etc.). Runs after taint so prompt-injection still
+  // wins via the stronger taint rules, but before principal/tool-level checks
+  // so an over-permissive role or a default `allow` tool can't bypass these.
+  // A boundary rule with effect `allow` returns null and falls through.
+  const boundaryRules = policy.sensitive_boundaries ?? DEFAULT_SENSITIVE_BOUNDARIES;
+  const boundaryViolation = evaluateSensitiveBoundaries(toolName, args, boundaryRules);
+  if (boundaryViolation) {
+    return boundaryViolation;
   }
 
   // v1: Check principal/role restrictions

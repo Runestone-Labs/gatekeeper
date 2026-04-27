@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-04-27
+
+### Added
+
+- **Sensitive Boundary Protection rule pack** — a built-in policy layer that
+  catches when an agent crosses a sensitive local resource boundary
+  (Keychain, SSH keys, cloud credentials, browser profiles, package-registry
+  tokens, env files) even when the agent's stated intent is benign. Motivated
+  by the failure mode where a coding agent debugging a Puppeteer / Chromium
+  prompt escalates from editing launch flags into `security
+  find-generic-password` and `security delete-generic-password` against the
+  user's macOS Keychain.
+  - 17 default rules covering macOS Keychain (read / dump / delete), SSH
+    private keys, AWS / GCP / Azure credentials, `.env` reads, npm / PyPI /
+    git auth tokens, `gh auth token`, Chromium-family and Firefox browser
+    profiles, destructive browser-profile deletion, and broad home-directory
+    secret greps.
+  - Each rule classifies the action with `category`, `resource_class`,
+    `risk` (`low | medium | high | critical`), and an optional
+    `safer_alternative` redirect. All four are mirrored into `riskFlags`
+    (`boundary:<id>`, `category:<x>`, `resource:<x>`, `risk:<x>`) so existing
+    audit consumers see the signal without code changes.
+  - Defaults always load. YAML overrides under `sensitive_boundaries:` in
+    `policy.yaml` merge by `id` — same id replaces a default, new ids
+    append, `effect: allow` whitelists a known-safe path. Validation
+    (regex compile, enum checks, duplicate-id detection) runs at policy-load
+    time so misconfiguration fails fast.
+  - Boundary check runs after taint and before principal / tool-level
+    deny patterns, so an over-permissive role or a default `allow` tool can
+    not bypass it.
+  - Reference YAML dump at `policies/sensitive-boundaries.yaml`; example
+    overrides in `policy.example.yaml`; demo fixture at
+    `examples/sensitive-boundaries/keychain-scope-creep.json`.
+- **`@runestone-labs/gatekeeper-claude-code`** *(new package under
+  `integrations/claude-code/`)* — Claude Code PreToolUse hook that gates
+  `Bash`, `Write`, `Edit`, and `WebFetch` through a running Gatekeeper
+  server. Hook posts `dryRun: true` to `POST /tool/:toolName` so Claude
+  Code remains the sole executor; on `deny` / `require_approval` it returns
+  Claude Code's `{ "decision": "block", "reason": "..." }` envelope so the
+  model can pivot. Fail-open by default; `GATEKEEPER_FAIL_CLOSED=1` flips
+  to fail-closed. Drop-in `settings.example.json` snippet wires the hook
+  into `~/.claude/settings.json`.
+- **`PolicyEvaluation` extended** — added optional `category`, `resourceClass`,
+  `risk`, `saferAlternative` fields populated by boundary-rule matches. All
+  optional and backwards-compatible; existing consumers ignore them.
+
+### Changed
+
+- **`Policy` shape** — added optional `sensitive_boundaries` array.
+  Defaults are merged in at load time, so existing policies with no
+  `sensitive_boundaries:` section automatically pick up the built-in pack.
+
 ## [0.3.2] - 2026-04-23
 
 ### Fixed

@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Write|Edit|WebFetch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "gatekeeper-claude-code-hook"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -25,9 +25,86 @@ The Gatekeeper intercepts all tool requests and:
 - **Allows** low-risk operations immediately
 - **Denies** operations that match dangerous patterns
 - **Requires human approval** for sensitive operations
+- **Catches sensitive-boundary crossings** — Keychain, SSH keys, cloud credentials, browser profiles, package-registry tokens, env files (see [Sensitive Boundary Protection](#sensitive-boundary-protection))
 - **Rejects when USD budget is exceeded** (optional, per-actor)
 
 All decisions are logged to an append-only audit trail (jsonl or Postgres). An aggregation endpoint (`/usage`) exposes call counts by actor × tool × day. A budget endpoint (`/budget`) surfaces current spend vs cap per configured rule.
+
+## Sensitive Boundary Protection
+
+Coding agents fail in subtle ways. They start with a safe task, then escalate
+into sensitive local operations while trying to be helpful. Gatekeeper ships
+a built-in rule pack that catches these crossings.
+
+**Real failure pattern:** A coding agent debugging a Puppeteer / Chromium
+"Safe Storage" prompt on macOS first applied a normal flag-based fix
+(`--use-mock-keychain`, `--password-store=basic`, throwaway `--user-data-dir`).
+When the prompt persisted, the agent pivoted to inspecting the user's
+Keychain — and proposed deleting entries "so there's nothing to access."
+
+```bash
+# Step 2 of the agent's reasoning — Gatekeeper requires approval (high risk)
+security find-generic-password -s "Chromium Safe Storage"
+
+# Step 3 of the agent's reasoning — Gatekeeper denies outright (critical)
+security delete-generic-password -s "Chromium Safe Storage"
+```
+
+Gatekeeper classifies these against a built-in rule pack:
+
+| Resource class            | Examples                                                    |
+| ------------------------- | ----------------------------------------------------------- |
+| `credential_store`        | macOS Keychain (find / dump / delete)                       |
+| `private_key`             | `~/.ssh/id_*`, `*.pem`, `~/.ssh` directory enumeration      |
+| `cloud_credentials`       | `~/.aws/credentials`, `~/.config/gcloud/`, `~/.azure/`      |
+| `env_secret`              | `cat .env`, `.env.*` reads via shell                        |
+| `package_registry_token`  | `~/.npmrc`, `~/.pypirc`                                     |
+| `developer_auth`          | `~/.git-credentials`, `gh auth token`                       |
+| `browser_profile`         | Chrome / Chromium / Brave / Arc / Firefox profile dirs      |
+| `unknown_sensitive`       | Broad recursive home-dir secret greps                       |
+
+Each rule has an `effect` (`allow | require_approval | deny`), a stable
+`category`, a `risk` level, and an optional `safer_alternative` redirect.
+Rules are mirrored into `riskFlags` (`boundary:keychain-read`,
+`category:credential_store_access`, `risk:high`) so existing audit consumers
+work unchanged.
+
+**Defaults always load** — no opt-in required. Override or extend them under
+`sensitive_boundaries:` in your `policy.yaml`; the full reference dump lives
+at [`policies/sensitive-boundaries.yaml`](policies/sensitive-boundaries.yaml).
+A demo fixture for the Puppeteer → Keychain escalation is at
+[`examples/sensitive-boundaries/keychain-scope-creep.json`](examples/sensitive-boundaries/keychain-scope-creep.json).
+
+### Use it from Claude Code
+
+[`@runestone-labs/gatekeeper-claude-code`](integrations/claude-code/) is a
+Claude Code PreToolUse hook that routes `Bash` / `Write` / `Edit` / `WebFetch`
+through Gatekeeper before Claude Code executes them. Install once globally,
+drop the [`settings.example.json`](integrations/claude-code/settings.example.json)
+snippet into `~/.claude/settings.json`, and every gated tool call gets
+evaluated against the boundary pack:
+
+```bash
+npm install -g @runestone-labs/gatekeeper-claude-code
+```
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Write|Edit|WebFetch",
+        "hooks": [{ "type": "command", "command": "gatekeeper-claude-code-hook" }]
+      }
+    ]
+  }
+}
+```
+
+Fail-open by default if the Gatekeeper server is down; set
+`GATEKEEPER_FAIL_CLOSED=1` to flip to fail-closed. See
+[`integrations/claude-code/README.md`](integrations/claude-code/README.md)
+for the full configuration reference.
 
 ## Threat Model
 

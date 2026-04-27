@@ -53,6 +53,34 @@ export interface ToolResult {
 // Policy decision types
 export type Decision = 'allow' | 'approve' | 'deny';
 
+// Sensitive-boundary classification (see src/policy/sensitiveBoundaries.ts).
+// Stays optional on PolicyEvaluation so unrelated code paths and existing
+// tests are unaffected; mirrored into riskFlags for legacy audit consumers.
+export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
+export type BoundaryEffect = 'allow' | 'require_approval' | 'deny';
+
+export interface SensitiveBoundaryRule {
+  id: string;
+  effect: BoundaryEffect;
+  /** Tools this rule applies to, e.g. ['shell.exec', 'files.write']. */
+  tools: string[];
+  match: {
+    /** Regex tested against the canonical command string (or canonicalized args). */
+    command_regex?: string;
+    /** Regex tested against args.path and against the literal command (paths often appear in shells). */
+    path_regex?: string;
+  };
+  /** Stable, machine-friendly classification. e.g. 'credential_store_access'. */
+  category: string;
+  /** Stable resource taxonomy. e.g. 'credential_store'. */
+  resource_class: string;
+  risk: RiskLevel;
+  /** Human-readable explanation surfaced to the agent and audit log. */
+  message: string;
+  /** Optional redirect — what the agent should do instead. */
+  safer_alternative?: string;
+}
+
 // Policy evaluation result
 export interface PolicyEvaluation {
   decision: Decision;
@@ -61,6 +89,12 @@ export interface PolicyEvaluation {
   humanExplanation: string;
   remediation?: string;
   riskFlags: string[];
+
+  // Sensitive-boundary metadata (set when a boundary rule matched). All optional.
+  category?: string;
+  resourceClass?: string;
+  risk?: RiskLevel;
+  saferAlternative?: string;
 }
 
 // Pending approval status
@@ -214,6 +248,12 @@ export interface Policy {
   global_deny_patterns?: string[];
   /** Per-actor spending caps, enforced before tool execution. */
   budgets?: BudgetRule[];
+  /**
+   * Sensitive-resource boundary rules. Built-in defaults always load;
+   * YAML entries with the same `id` override defaults, others append.
+   * See src/policy/sensitiveBoundaries.ts.
+   */
+  sensitive_boundaries?: SensitiveBoundaryRule[];
 }
 
 // v1: Alert budget configuration

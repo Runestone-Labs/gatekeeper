@@ -118,6 +118,44 @@ tools:
     # in the budgets[] enforcement below. Leave unset for free/untracked tools.
     # cost_usd: 0.001
 
+# Optional: sensitive-boundary rule overrides.
+#
+# A built-in rule pack ships in src/policy/sensitiveBoundaryDefaults.ts (see
+# policies/sensitive-boundaries.yaml for the full reference dump). Defaults
+# load automatically — you don't need to enumerate them here. Use this section
+# only when you want to:
+#   - REPLACE a default rule (use the same `id`)
+#   - ADD a new rule (use a fresh `id`)
+#   - WHITELIST a known-safe path/command via `effect: allow` on a default id
+#
+# Effects: allow | require_approval | deny
+# Risk:    low | medium | high | critical
+# Match must include at least one of `command_regex` or `path_regex`.
+#
+# sensitive_boundaries:
+#   # Example 1: whitelist a dev fixture that touches the Keychain by id.
+#   - id: keychain-read
+#     effect: allow
+#     tools: [shell.exec]
+#     match:
+#       command_regex: 'security find-generic-password -s "GatekeeperDevFixture"'
+#     category: dev_whitelist
+#     resource_class: credential_store
+#     risk: low
+#     message: "Test fixture for the Keychain integration suite."
+#
+#   # Example 2: add a custom rule for a secret manager not in the default pack.
+#   - id: onepassword-cli-read
+#     effect: require_approval
+#     tools: [shell.exec]
+#     match:
+#       command_regex: '\bop\s+(read|item\s+get)\b'
+#     category: secret_manager_access
+#     resource_class: credential_store
+#     risk: high
+#     message: "Reading from 1Password CLI requires approval."
+#     safer_alternative: "Stage the secret into a scoped env var instead."
+
 # Optional: per-actor spending caps. Applied after other policy checks.
 # Each rule matches an actor by name and/or role, sums the cost_usd of all
 # recent calls within a rolling window, and rejects (or soft-flags) calls
