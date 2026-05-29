@@ -48,6 +48,14 @@ export const config = {
   runestoneApiUrl: process.env.RUNESTONE_API_URL || '',
   runestoneApiKey: process.env.RUNESTONE_API_KEY || '',
 
+  // Anthropic model-call proxy — lets agents (e.g. the OpenClaw Agent SDK engine)
+  // route /v1/messages through gatekeeper for policy + audit instead of calling
+  // Anthropic directly. Off by default. When `anthropicApiKey` is set here, the
+  // proxy injects it (so the key can live only in gatekeeper); otherwise it
+  // forwards the caller-provided key.
+  enableAnthropicProxy: process.env.ENABLE_ANTHROPIC_PROXY === 'true',
+  anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
+
   // Provider selection
   approvalProvider: (process.env.APPROVAL_PROVIDER || 'local') as ApprovalProviderType,
   auditSink: (process.env.AUDIT_SINK || 'jsonl') as AuditSinkType,

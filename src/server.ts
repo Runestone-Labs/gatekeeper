@@ -21,6 +21,7 @@ import {
   completeIdempotencyRecord,
 } from './idempotency/store.js';
 import { validateCapabilityToken } from './capabilities/token.js';
+import { registerAnthropicProxy } from './proxy/anthropic.js';
 
 const startTime = Date.now();
 
@@ -515,6 +516,9 @@ app.post<{ Params: { toolName: string } }>('/tool/:toolName', async (request, re
 
 // Register approval routes
 registerApprovalRoutes(app);
+
+// Register the Anthropic model-call proxy (no-op unless ENABLE_ANTHROPIC_PROXY=true)
+registerAnthropicProxy(app);
 
 // Periodic cleanup of expired approvals (every 5 minutes)
 setInterval(
