@@ -27,6 +27,7 @@ The Gatekeeper intercepts all tool requests and:
 - **Requires human approval** for sensitive operations
 - **Catches sensitive-boundary crossings** — Keychain, SSH keys, cloud credentials, browser profiles, package-registry tokens, env files (see [Sensitive Boundary Protection](#sensitive-boundary-protection))
 - **Rejects when USD budget is exceeded** (optional, per-actor)
+- **Optionally proxies Anthropic model calls** — route inference through the gatekeeper so every `/v1/messages` call is audited and the API key stays centralized (off by default; see [docs/API.md](docs/API.md#all-anthropic))
 
 All decisions are logged to an append-only audit trail (jsonl or Postgres). An aggregation endpoint (`/usage`) exposes call counts by actor × tool × day. A budget endpoint (`/budget`) surfaces current spend vs cap per configured rule.
 
@@ -195,6 +196,15 @@ export GATEKEEPER_HOST=127.0.0.1
 
 # Optional: Base URL for approval links
 export BASE_URL="http://127.0.0.1:3847"
+
+# Optional: Route Anthropic model calls through the gatekeeper (default: off)
+# When enabled, point your SDK's ANTHROPIC_BASE_URL at <gatekeeper>/anthropic.
+# See docs/API.md for the full /anthropic proxy reference.
+export ENABLE_ANTHROPIC_PROXY=false
+
+# Optional: Anthropic API key. When set, the /anthropic proxy injects it on
+# proxied calls so the key can live only in gatekeeper (not in the agent).
+export ANTHROPIC_API_KEY="sk-ant-..."
 ```
 
 ### 3. Create Policy File

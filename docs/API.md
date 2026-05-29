@@ -18,6 +18,7 @@ Base URL: `http://127.0.0.1:3847` (default) or whatever `BASE_URL` is set to.
 - [`GET /deny/:id`](#get-denyid) — deny via signed URL
 - [`POST /approvals/:id/approve`](#post-approvalsidapprove) — programmatic approve
 - [`POST /approvals/:id/deny`](#post-approvalsiddeny) — programmatic deny
+- [`ALL /anthropic/*`](#all-anthropic) — optional Anthropic model-call proxy (audited passthrough)
 - [Error shape](#error-shape)
 - [Data types](#data-types)
 
@@ -353,6 +354,48 @@ Programmatic approval (e.g. from another service). Requires either:
 ## `POST /approvals/:id/deny`
 
 Same as above with `action=deny`.
+
+---
+
+## `ALL /anthropic/*`
+
+Optional streaming passthrough that routes Anthropic model-inference calls through gatekeeper instead of letting agents hit `api.anthropic.com` directly. This brings inference under the same control plane as tool calls: every request is audited, the API key can live only in gatekeeper, and a policy seam exists to deny later.
+
+**Disabled by default.** The route is only registered when `ENABLE_ANTHROPIC_PROXY=true`. When off, requests to `/anthropic/*` 404.
+
+**How to use it**
+
+Point your SDK/CLI's `ANTHROPIC_BASE_URL` at `<gatekeeper>/anthropic`, then call the usual endpoints under it:
+
+```bash
+export ANTHROPIC_BASE_URL=http://127.0.0.1:3847/anthropic
+# the SDK now calls http://127.0.0.1:3847/anthropic/v1/messages
+```
+
+The wildcard subpath (`/v1/messages` and siblings) plus the querystring is appended to the fixed upstream host `https://api.anthropic.com`. Method, headers (minus hop-by-hop/auth), and body are forwarded as-is.
+
+**What gatekeeper does**
+
+- **Audits as `anthropic.proxy`** — an `allow` request entry plus an `executed` result entry carrying the upstream status. The `argsSummary` is a non-secret shape summary (`model`, `stream`, `messages` count, `max_tokens`) only — **prompt content is never logged**.
+- **Injects the key** — when `ANTHROPIC_API_KEY` is set on the gatekeeper process, it is injected as `x-api-key` upstream (so the key need not live in the agent). Otherwise the caller's `x-api-key` is forwarded. `anthropic-version` defaults to `2023-06-01` if absent.
+- **Streams the response** — the (SSE) body is piped back token-by-token, unlike the buffered `http.request` tool, so `stream: true` works.
+- **SSRF-safe by construction** — the upstream host is hardcoded; the wildcard controls only the path. An agent cannot point this at an internal host.
+
+**Actor attribution**
+
+Calls are attributed to `{ "name": "openclaw", "role": "openclaw" }` by default. Override per request with the `x-runestone-actor` and `x-runestone-role` headers to attribute inference to a specific agent in the audit log.
+
+**v1 is observe-first** — proxied calls are audited and allowed; the policy hook to deny based on model/actor/etc. is a future addition (same posture as budgets).
+
+**Response — error** (`502`)
+
+If the upstream fetch fails (network/timeout before headers), gatekeeper returns:
+
+```json
+{ "error": "Anthropic proxy upstream error: <message>" }
+```
+
+Otherwise the upstream status and (streamed) body are passed through unchanged.
 
 ---
 

@@ -184,6 +184,8 @@ See `.env.example` for the full list. The critical ones:
 | `SLACK_WEBHOOK_URL` | only for `slack` provider | — | Incoming-webhook URL. |
 | `LOG_LEVEL` | no | `info` | `trace` \| `debug` \| `info` \| `warn` \| `error` |
 | `ENABLE_MEMORY` | no | auto | `true` enables the optional graph/memory tools (requires `DATABASE_URL`). |
+| `ENABLE_ANTHROPIC_PROXY` | no | `false` | `true` registers the optional `ALL /anthropic/*` streaming passthrough for Anthropic model calls (see [API.md](API.md#all-anthropic)). Off by default. |
+| `ANTHROPIC_API_KEY` | no | — | When set (and the proxy is enabled), injected as `x-api-key` on proxied calls so the key lives only in gatekeeper. If unset, the caller's key is forwarded. |
 
 ---
 

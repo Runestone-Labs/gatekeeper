@@ -97,6 +97,8 @@ Agent → Gatekeeper → Decision → Agent executes locally
             Control Plane (for approvals, audit, policy)
 ```
 
+There is one class of action where the gatekeeper *can* sit in the path without breaking the loop: the model call itself. An Agent-SDK orchestrator that reasons by calling Anthropic directly would otherwise leave its most consequential step — what the model was asked, and with which key — entirely outside the governance triad. The optional Anthropic proxy closes that gap: agents point `ANTHROPIC_BASE_URL` at the gatekeeper, every inference is audited as `anthropic.proxy`, and the API key can live only in the gatekeeper rather than scattered across every agent process. Because inference is a single request rather than a tight execute-parse-execute loop, streaming it through the control plane costs nothing the agent will notice — so the same audit and policy seam that governs tools now governs reasoning, too.
+
 ## Control Planes Win
 
 Why does governance centralize?
