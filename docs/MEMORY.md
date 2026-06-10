@@ -151,7 +151,7 @@ Create or update an entity in SQL.
     "attributes": {
       "language": "TypeScript",
       "status": "active",
-      "version": "0.3.1"
+      "version": "0.3.2"
     }
   }
 }

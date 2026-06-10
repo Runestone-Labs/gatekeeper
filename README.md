@@ -413,7 +413,7 @@ curl http://127.0.0.1:3847/health
 Response:
 ```json
 {
-  "version": "0.3.1",
+  "version": "0.3.2",
   "policyHash": "sha256:abc123...",
   "uptime": 3600,
   "pendingApprovals": 2,
@@ -509,7 +509,7 @@ All requests are logged via the configured audit sink. Default (jsonl) writes to
   "argsSummary": "{\"command\":\"ls -la\"}",
   "riskFlags": [],
   "policyHash": "sha256:abc123...",
-  "gatekeeperVersion": "0.3.1"
+  "gatekeeperVersion": "0.3.2"
 }
 ```
 

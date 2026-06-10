@@ -41,7 +41,7 @@ Service health + runtime info. Cheap to call; wire to your uptime monitor.
 **Response**
 ```json
 {
-  "version": "0.3.1",
+  "version": "0.3.2",
   "policyHash": "sha256:1ddd938c...",
   "uptime": 1234,
   "pendingApprovals": 3,
@@ -203,7 +203,7 @@ Query the audit log. Requires `AUDIT_SINK=postgres` (the jsonl sink doesn't expo
       "humanExplanation": "...",
       "remediation": null,
       "policyHash": "sha256:...",
-      "gatekeeperVersion": "0.3.1",
+      "gatekeeperVersion": "0.3.2",
       "approvalId": null,
       "origin": "user_direct",
       "taint": [],
