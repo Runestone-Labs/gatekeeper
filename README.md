@@ -107,6 +107,39 @@ Fail-open by default if the Gatekeeper server is down; set
 [`integrations/claude-code/README.md`](integrations/claude-code/README.md)
 for the full configuration reference.
 
+### Use it from any MCP client
+
+[`@runestone-labs/gatekeeper-mcp`](integrations/mcp-server/) is a stdio MCP
+server that lets any MCP client (Claude Desktop, Claude Code, Cursor, …) run
+real tool calls — `shell_exec`, `files_write`, `http_request`, a generic
+`gatekeeper_call`, plus `gatekeeper_health` — but only by routing every call
+through Gatekeeper. Identity, role, and origin are pinned server-side (the
+model can't escalate via tool arguments), and it fails closed: a deny, a
+pending approval, or any malformed Gatekeeper response surfaces as an error,
+never as a successful result.
+
+Add it to your MCP client config:
+
+```json
+{
+  "mcpServers": {
+    "gatekeeper": {
+      "command": "npx",
+      "args": ["-y", "@runestone-labs/gatekeeper-mcp"],
+      "env": {
+        "GATEKEEPER_URL": "http://127.0.0.1:3847",
+        "GATEKEEPER_ROLE": "agent"
+      }
+    }
+  }
+}
+```
+
+It's also listed on the MCP Registry (preview) as
+`io.github.runestone-labs/gatekeeper`. See
+[`integrations/mcp-server/README.md`](integrations/mcp-server/README.md) for
+the full tool table and security model.
+
 ## Threat Model
 
 This gatekeeper protects against:

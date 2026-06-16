@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`@runestone-labs/gatekeeper-mcp`** *(new package under
+  `integrations/mcp-server/`)* — a stdio MCP server that lets any MCP client
+  (Claude Desktop, Claude Code, Cursor) run tool calls — `shell_exec`,
+  `files_write`, `http_request`, a generic `gatekeeper_call`, and
+  `gatekeeper_health` — only by routing every call through Gatekeeper
+  (policy → approval → audit). Identity / role / origin are pinned
+  server-side (the model can't escalate via tool arguments); it fails closed
+  (deny, pending approval, or any malformed Gatekeeper response surfaces as an
+  error, never a success). Published to npm and listed on the MCP Registry
+  (preview) as `io.github.runestone-labs/gatekeeper` via `server.json` +
+  GitHub OIDC publish workflow.
+
 ## [0.4.0] - 2026-04-27
 
 ### Added

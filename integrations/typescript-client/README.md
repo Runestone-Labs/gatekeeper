@@ -127,6 +127,7 @@ interface GatekeeperResult<T> {
 See the `integrations/` directory for examples of wrapping this client for specific agent frameworks:
 
 - [OpenClaw](../openclaw/) - OpenClaw skill integration
+- [MCP server](../mcp-server/) - stdio MCP server (`@runestone-labs/gatekeeper-mcp`) that wraps this client so any MCP client (Claude Desktop, Claude Code, Cursor) routes its tool calls through Gatekeeper
 
 ## License
 
