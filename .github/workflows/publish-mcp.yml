@@ -1,0 +1,61 @@
+name: Publish MCP server
+
+# Publishes @runestone-labs/gatekeeper-mcp to npm AND registers it on the
+# official MCP Registry on each GitHub release. The registry verifies the
+# `io.github.runestone-labs/*` namespace via GitHub OIDC (id-token: write), so
+# no registry credential is needed — ownership is proven by the workflow running
+# in the Runestone-Labs org.
+#
+# NOTE: the MCP Registry is in preview. Before the first release, validate the
+# manifest locally with `mcp-publisher` (and confirm the install asset name
+# below matches the current mcp-publisher release).
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish-mcp:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # npm provenance + mcp-publisher github-oidc login
+    defaults:
+      run:
+        working-directory: integrations/mcp-server
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm run test:run
+
+      - name: Publish to npm
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # The registry validates that the npm package's `mcpName` field matches
+      # the `name` in server.json, so npm publish must succeed first.
+      - name: Install mcp-publisher
+        run: |
+          curl -sSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" \
+            | tar -xz mcp-publisher
+
+      - name: Authenticate to the MCP Registry (GitHub OIDC)
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish to the MCP Registry
+        run: ./mcp-publisher publish

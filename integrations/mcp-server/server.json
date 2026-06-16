@@ -1,0 +1,37 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.json",
+  "name": "io.github.runestone-labs/gatekeeper",
+  "description": "Run MCP tool calls (shell, files, HTTP, and any Gatekeeper tool) through Runestone Gatekeeper — policy enforcement, human approval, and audit for any MCP client.",
+  "version": "0.1.0",
+  "repository": {
+    "url": "https://github.com/Runestone-Labs/gatekeeper",
+    "source": "github",
+    "subfolder": "integrations/mcp-server"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@runestone-labs/gatekeeper-mcp",
+      "version": "0.1.0",
+      "transport": { "type": "stdio" },
+      "environmentVariables": [
+        {
+          "name": "GATEKEEPER_ROLE",
+          "description": "Policy role this server presents to Gatekeeper for every call. Required.",
+          "isRequired": true
+        },
+        {
+          "name": "GATEKEEPER_URL",
+          "description": "Base URL of the Gatekeeper server. Default http://127.0.0.1:3847.",
+          "isRequired": false
+        },
+        {
+          "name": "GATEKEEPER_AGENT_NAME",
+          "description": "Agent name recorded in Gatekeeper audit logs. Default mcp-client.",
+          "isRequired": false
+        }
+      ]
+    }
+  ]
+}

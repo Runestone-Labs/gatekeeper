@@ -258,9 +258,11 @@ be wired up. Some concrete patterns:
 - **OpenClaw** — the `integrations/openclaw/` directory ships a skill package
   with `gk_exec`, `gk_write`, `gk_http` tool wrappers. Drop the skill into
   your OpenClaw install and point `GATEKEEPER_URL` at the server.
-- **MCP servers** — wrap the gatekeeper client in an MCP tool handler.
-  Each MCP tool becomes a thin adapter that calls `gk.callTool()` with the
-  appropriate role and taint metadata.
+- **MCP servers** — the `integrations/mcp-server/` package
+  (`@runestone-labs/gatekeeper-mcp`) is a ready-made stdio MCP server: point any
+  MCP client (Claude Desktop, Claude Code, Cursor) at it and every `shell_exec` /
+  `files_write` / `http_request` / `gatekeeper_call` runs through Gatekeeper.
+  Identity/role/origin are pinned server-side, so the model cannot escalate.
 - **Claude Code hooks** — use a pre-tool hook that intercepts Bash/Write
   calls and routes them through the gatekeeper, denying locally if the
   gatekeeper denies. The `PreToolUse` hook in `.claude/settings.json` can
