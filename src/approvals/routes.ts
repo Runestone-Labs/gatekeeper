@@ -1,10 +1,16 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { verifyAndConsumeApproval, consumeApprovalDirect } from './store.js';
+import {
+  verifyAndConsumeApproval,
+  consumeApprovalDirect,
+  createApproval,
+  getApprovalStatus,
+} from './store.js';
 import { executeTool } from '../tools/index.js';
 import { logApprovalConsumed, logToolExecution } from '../audit/logger.js';
-import { redactSecrets, canonicalize, computeHash } from '../utils.js';
+import { redactSecrets, canonicalize, computeHash, generateId } from '../utils.js';
 import { getApprovalProvider, getPolicySource } from '../providers/index.js';
 import { config } from '../config.js';
+import type { Actor } from '../types.js';
 
 interface ApprovalParams {
   id: string;
@@ -18,6 +24,24 @@ interface ApprovalQuery {
 interface ApprovalBody {
   sig?: string;
   exp?: string;
+}
+
+/**
+ * Body for POST /approvals/register — lets a trusted client (the premium app)
+ * register a pending approval for an action gatekeeper does NOT itself execute.
+ */
+interface RegisterApprovalBody {
+  toolName: string;
+  args?: Record<string, unknown>;
+  actor?: Actor;
+  /** Opaque application context (decision card, serialized action ref, channels…). */
+  metadata?: Record<string, unknown>;
+  /** Expiry window in ms from now (defaults to the gatekeeper approval TTL). */
+  ttlMs?: number;
+  /** Defaults to true for this endpoint (decision-only; caller executes). */
+  external?: boolean;
+  requestId?: string;
+  idempotencyKey?: string;
 }
 
 /**
@@ -65,6 +89,61 @@ export function registerApprovalRoutes(app: FastifyInstance): void {
       reply: FastifyReply
     ) => {
       return handleApprovalAction(request, reply, 'deny');
+    }
+  );
+
+  // POST /approvals/register — register a decision-only approval (secret-auth).
+  // The control plane owns the lifecycle + audit; the caller executes its own
+  // action after observing the decision. Returns signed approve/deny URLs.
+  app.post<{ Body: RegisterApprovalBody }>(
+    '/approvals/register',
+    async (request: FastifyRequest<{ Body: RegisterApprovalBody }>, reply: FastifyReply) => {
+      if (!hasSecretAuth(request)) {
+        reply.status(401).send({ error: 'Unauthorized' });
+        return;
+      }
+      const body = (request.body as RegisterApprovalBody) || ({} as RegisterApprovalBody);
+      if (!body.toolName || typeof body.toolName !== 'string') {
+        reply.status(400).send({ error: 'toolName is required' });
+        return;
+      }
+      const actor: Actor = body.actor ?? { type: 'agent', name: 'external', role: 'navigator' };
+      const { approval, approveUrl, denyUrl } = createApproval({
+        toolName: body.toolName,
+        args: body.args ?? {},
+        actor,
+        requestId: body.requestId ?? generateId(),
+        idempotencyKey: body.idempotencyKey,
+        metadata: body.metadata,
+        external: body.external ?? true,
+        ttlMs: body.ttlMs,
+      });
+      reply.send({
+        id: approval.id,
+        status: approval.status,
+        createdAt: approval.createdAt,
+        expiresAt: approval.expiresAt,
+        approveUrl,
+        denyUrl,
+      });
+    }
+  );
+
+  // GET /approvals/:id/status — poll a decision (secret-auth). Lets a consumer
+  // reconcile after a restart and learn approve/deny/expire out of band.
+  app.get<{ Params: ApprovalParams }>(
+    '/approvals/:id/status',
+    async (request: FastifyRequest<{ Params: ApprovalParams }>, reply: FastifyReply) => {
+      if (!hasSecretAuth(request)) {
+        reply.status(401).send({ error: 'Unauthorized' });
+        return;
+      }
+      const status = getApprovalStatus(request.params.id);
+      if (!status) {
+        reply.status(404).send({ error: 'Approval not found' });
+        return;
+      }
+      reply.send(status);
     }
   );
 }
@@ -139,7 +218,34 @@ async function handleApprovalAction(
     return;
   }
 
-  // action === 'approve' - execute the tool
+  // action === 'approve'
+  // External (decision-only) approvals: record + audit the decision, but DO NOT
+  // execute a governed tool. The registering client polls status and runs its
+  // own action. This lets the control plane own approvals for actions it does
+  // not itself execute (trades, publishing, …).
+  if (approval.external) {
+    logApprovalConsumed({
+      requestId: approval.requestId,
+      tool: approval.toolName,
+      actor: approval.actor,
+      argsSummary,
+      argsHash,
+      approvalId: approval.id,
+      action: 'approved',
+      reasonCode: 'APPROVAL_APPROVED',
+      humanExplanation: 'External approval approved; execution delegated to the registering client.',
+    });
+
+    const provider = getApprovalProvider();
+    if (provider.notifyResult) {
+      await provider.notifyResult(approval, 'approved');
+    }
+
+    reply.send({ success: true, approvalId: approval.id, external: true });
+    return;
+  }
+
+  // Governed-tool approval — execute the tool.
   const policySource = getPolicySource();
   const policy = await policySource.load();
   const toolPolicy = policy.tools[approval.toolName];

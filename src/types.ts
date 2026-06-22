@@ -113,6 +113,21 @@ export interface PendingApproval {
   idempotencyKey?: string;
   createdAt: string;
   expiresAt: string;
+  /**
+   * Opaque application metadata supplied by the registering client (e.g. a
+   * decision-inbox card, the serialized action reference, channel list).
+   * Gatekeeper persists and returns it verbatim but NEVER inspects it — this is
+   * the seam that keeps premium application context out of the OSS control plane.
+   */
+  metadata?: Record<string, unknown>;
+  /**
+   * When true this is a DECISION-ONLY approval: on approve, gatekeeper records
+   * and audits the decision but does NOT execute a governed tool. An external
+   * consumer (e.g. the premium app) polls the status and runs its own action.
+   * This lets the OSS control plane own the approval lifecycle for actions it
+   * does not itself execute (trades, publishing, etc.).
+   */
+  external?: boolean;
 }
 
 // Audit log entry

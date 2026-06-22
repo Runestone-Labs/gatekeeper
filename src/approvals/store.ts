@@ -18,10 +18,16 @@ export function createApproval(params: {
   context?: RequestContext;
   requestId: string;
   idempotencyKey?: string;
+  /** Opaque application metadata, persisted + returned verbatim. */
+  metadata?: Record<string, unknown>;
+  /** Decision-only approval (gatekeeper records the decision; caller executes). */
+  external?: boolean;
+  /** Override the default expiry window (ms from now). */
+  ttlMs?: number;
 }): { approval: PendingApproval; approveUrl: string; denyUrl: string } {
   const id = generateId();
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + config.approvalExpiryMs);
+  const expiresAt = new Date(now.getTime() + (params.ttlMs ?? config.approvalExpiryMs));
 
   const canonicalArgs = canonicalize(params.args);
 
@@ -37,6 +43,8 @@ export function createApproval(params: {
     idempotencyKey: params.idempotencyKey,
     createdAt: now.toISOString(),
     expiresAt: expiresAt.toISOString(),
+    metadata: params.metadata,
+    external: params.external,
   };
 
   // Store in memory and on disk
@@ -255,4 +263,25 @@ export function cleanupExpiredApprovals(): PendingApproval[] {
   }
 
   return expired;
+}
+
+/** Public, side-effect-light status snapshot for an external consumer polling
+ * a decision (cache-then-disk). Reflects lazy expiry like the approve path. */
+export function getApprovalStatus(
+  id: string,
+): Pick<PendingApproval, 'id' | 'status' | 'createdAt' | 'expiresAt' | 'metadata' | 'external'> | null {
+  const approval = loadApproval(id);
+  if (!approval) return null;
+  if (approval.status === 'pending' && new Date(approval.expiresAt) < new Date()) {
+    approval.status = 'expired';
+    saveApprovalToDisk(approval);
+  }
+  return {
+    id: approval.id,
+    status: approval.status,
+    createdAt: approval.createdAt,
+    expiresAt: approval.expiresAt,
+    metadata: approval.metadata,
+    external: approval.external,
+  };
 }
