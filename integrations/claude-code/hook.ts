@@ -25,6 +25,7 @@
  *   GATEKEEPER_AGENT_ROLE     Default: claude-code
  *   GATEKEEPER_FAIL_CLOSED    "1" or "true" to fail closed when server is down
  *   GATEKEEPER_TIMEOUT_MS     Default: 2000
+ *   GATEKEEPER_RUN_ID         Optional run id for per-run budgets (default: session id)
  *   GATEKEEPER_DEBUG          "1" to log decisions to stderr
  */
 
@@ -61,6 +62,7 @@ function readConfig(): {
   baseUrl: string;
   agentName: string;
   agentRole: string;
+  runId?: string;
   failClosed: boolean;
   timeoutMs: number;
   debug: boolean;
@@ -69,6 +71,7 @@ function readConfig(): {
     baseUrl: process.env.GATEKEEPER_BASE_URL ?? 'http://127.0.0.1:3847',
     agentName: process.env.GATEKEEPER_AGENT_NAME ?? 'claude-code',
     agentRole: process.env.GATEKEEPER_AGENT_ROLE ?? 'claude-code',
+    runId: process.env.GATEKEEPER_RUN_ID || undefined,
     failClosed:
       process.env.GATEKEEPER_FAIL_CLOSED === '1' || process.env.GATEKEEPER_FAIL_CLOSED === 'true',
     timeoutMs: Number.parseInt(process.env.GATEKEEPER_TIMEOUT_MS ?? '2000', 10),
@@ -139,11 +142,25 @@ export async function evaluate(
   baseUrl: string,
   toolName: string,
   args: Record<string, unknown>,
-  opts: { agentName: string; agentRole: string; timeoutMs: number; sessionId?: string }
+  opts: {
+    agentName: string;
+    agentRole: string;
+    timeoutMs: number;
+    sessionId?: string;
+    runId?: string;
+  }
 ): Promise<GatekeeperEvaluationResponse> {
+  // Correlate all of a session's calls under one run so per-run budgets apply.
+  // Falls back to the Claude Code session id when no explicit run id is set.
+  const runId = opts.runId || opts.sessionId;
   const body = {
     requestId: randomUUID(),
-    actor: { type: 'agent' as const, name: opts.agentName, role: opts.agentRole },
+    actor: {
+      type: 'agent' as const,
+      name: opts.agentName,
+      role: opts.agentRole,
+      ...(runId ? { runId } : {}),
+    },
     args,
     context: opts.sessionId ? { conversationId: opts.sessionId } : undefined,
     origin: 'model_inferred' as const,
@@ -240,6 +257,7 @@ export async function run(stdin: string): Promise<{ exit: number; stdout?: strin
       agentRole: cfg.agentRole,
       timeoutMs: cfg.timeoutMs,
       sessionId: input.session_id,
+      runId: cfg.runId,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

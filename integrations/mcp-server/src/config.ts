@@ -13,6 +13,11 @@ export interface ServerConfig {
   baseUrl: string;
   role: string;
   agentName: string;
+  /**
+   * Optional run correlation id (pinned server-side, never from tool args) so
+   * all calls from this MCP server count toward one per-run budget.
+   */
+  runId?: string;
   /** Pinned: these calls originate from an LLM via MCP, not a human. */
   origin: Origin;
   /** Pinned taint — marks everything from this server as MCP-sourced. */
@@ -31,6 +36,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     baseUrl: env.GATEKEEPER_URL || 'http://127.0.0.1:3847',
     role,
     agentName: env.GATEKEEPER_AGENT_NAME || 'mcp-client',
+    runId: env.GATEKEEPER_RUN_ID || undefined,
     origin: 'model_inferred',
     taint: ['mcp_client'],
   };

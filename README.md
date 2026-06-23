@@ -26,10 +26,10 @@ The Gatekeeper intercepts all tool requests and:
 - **Denies** operations that match dangerous patterns
 - **Requires human approval** for sensitive operations
 - **Catches sensitive-boundary crossings** — Keychain, SSH keys, cloud credentials, browser profiles, package-registry tokens, env files (see [Sensitive Boundary Protection](#sensitive-boundary-protection))
-- **Rejects when USD budget is exceeded** (optional, per-actor)
-- **Optionally proxies Anthropic model calls** — route inference through the gatekeeper so every `/v1/messages` call is audited and the API key stays centralized (off by default; see [docs/API.md](docs/API.md#all-anthropic))
+- **Rejects when a USD / token / call budget is exceeded** (optional) — per **actor** (a rolling guardrail) or per **run** (`scope: run`, keyed on `runId`: caps a single agentic run at the action boundary, where recursive burn compounds)
+- **Optionally proxies Anthropic model calls** — route inference through the gatekeeper so every `/v1/messages` call is audited, the API key stays centralized, and real per-token **cost** is metered onto the audit row and into budgets (off by default; see [docs/API.md](docs/API.md#all-anthropic))
 
-All decisions are logged to an append-only audit trail (jsonl or Postgres). An aggregation endpoint (`/usage`) exposes call counts by actor × tool × day. A budget endpoint (`/budget`) surfaces current spend vs cap per configured rule.
+All decisions are logged to an append-only audit trail (jsonl or Postgres). An aggregation endpoint (`/usage`) exposes call counts — and real cost/token sums — by actor × tool × day. A budget endpoint (`/budget`) surfaces current spend vs cap per configured rule.
 
 ## Sensitive Boundary Protection
 
