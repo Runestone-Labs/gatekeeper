@@ -22,6 +22,7 @@ import {
 } from './idempotency/store.js';
 import { validateCapabilityToken } from './capabilities/token.js';
 import { registerAnthropicProxy } from './proxy/anthropic.js';
+import { refreshLivePricing } from './pricing/index.js';
 
 const startTime = Date.now();
 
@@ -519,6 +520,17 @@ registerApprovalRoutes(app);
 
 // Register the Anthropic model-call proxy (no-op unless ENABLE_ANTHROPIC_PROXY=true)
 registerAnthropicProxy(app);
+
+// When the proxy is enabled, keep the model-pricing table fresh so proxied
+// model calls are metered at REAL per-token cost (not a nominal flat rate).
+// Best-effort: falls back to the static table on any network error.
+if (config.enableAnthropicProxy) {
+  refreshLivePricing()
+    .then((r) => console.log(`Model pricing: ${r.updated} rates from ${r.source}`))
+    .catch(() => {});
+  // Daily refresh; unref so it never holds the process open on shutdown.
+  setInterval(() => void refreshLivePricing().catch(() => {}), 24 * 60 * 60 * 1000).unref();
+}
 
 // Periodic cleanup of expired approvals (every 5 minutes)
 setInterval(
