@@ -114,22 +114,27 @@ export async function computeBudgetStatus(
   let currentTokens = 0;
   let currentCalls = 0;
   for (const row of summary.rows) {
-    // Every call (including free tools) counts toward call/token ceilings.
-    currentCalls += row.callCount;
+    // Attribute cost + calls to EXECUTIONS, not the paired request-log rows: a
+    // single allowed tool call logs both an 'allow' and an 'executed' entry, so
+    // counting raw rows would double-charge flat-cost tools. Falls back to
+    // callCount for summaries without a decision breakdown. (Real model cost is
+    // already carried only on the executed row, so totalCostUsd is unaffected.)
+    const executedCount = row.decisions?.executed ?? row.callCount;
+    currentCalls += executedCount;
     if (typeof row.totalTokens === 'number') currentTokens += row.totalTokens;
 
     const realCost = typeof row.totalCostUsd === 'number' ? row.totalCostUsd : null;
-    const flatCost = (policy.tools[row.tool]?.cost_usd ?? 0) * row.callCount;
+    const flatCost = (policy.tools[row.tool]?.cost_usd ?? 0) * executedCount;
     const cost = realCost != null ? realCost : flatCost;
     // Free tool with no real cost contributes nothing to the USD breakdown.
     if (realCost == null && cost <= 0) continue;
 
     const existing = byToolMap.get(row.tool);
     if (existing) {
-      existing.callCount += row.callCount;
+      existing.callCount += executedCount;
       existing.costUsd += cost;
     } else {
-      byToolMap.set(row.tool, { callCount: row.callCount, costUsd: cost });
+      byToolMap.set(row.tool, { callCount: executedCount, costUsd: cost });
     }
   }
 

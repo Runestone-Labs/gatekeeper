@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import yaml from 'js-yaml';
 import { Policy, ToolPolicy, PrincipalPolicy } from '../types.js';
 import { canonicalize, computeHash } from '../utils.js';
+import { normalizeBudgets } from '../policy/loadPolicy.js';
 import { PolicySource } from './types.js';
 
 /**
@@ -71,6 +72,9 @@ export class YamlPolicySource implements PolicySource {
           config.env_overrides && typeof config.env_overrides === 'object'
             ? (config.env_overrides as Record<string, string>)
             : undefined,
+        // Nominal USD cost per call — used by budget enforcement for non-model
+        // tools (model calls are metered at real per-token cost by the proxy).
+        cost_usd: normalizeNumber(config.cost_usd),
       };
     }
 
@@ -103,6 +107,13 @@ export class YamlPolicySource implements PolicySource {
 
     if (globalDenyPatterns) {
       policy.global_deny_patterns = globalDenyPatterns;
+    }
+
+    // Spending caps (actor-scoped guardrails and/or per-run caps). Shares the
+    // canonical parser with loadPolicy so YAML budgets behave identically.
+    const budgets = normalizeBudgets(raw.budgets);
+    if (budgets) {
+      policy.budgets = budgets;
     }
 
     this.cachedPolicy = policy;
@@ -174,6 +185,7 @@ type RawPolicyData = {
   tools?: Record<string, unknown>;
   principals?: Record<string, unknown>;
   global_deny_patterns?: unknown;
+  budgets?: unknown;
 };
 
 type RawPolicyFile = RawPolicyData & {
@@ -243,6 +255,8 @@ function mergeRawPolicies(base: RawPolicyData, override: RawPolicyData): RawPoli
       base.global_deny_patterns,
       override.global_deny_patterns
     ),
+    // Budgets replace wholesale (a child policy's budgets[] overrides the parent's).
+    budgets: override.budgets ?? base.budgets,
   };
 }
 

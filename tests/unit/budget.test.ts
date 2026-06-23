@@ -284,6 +284,39 @@ describe('budget — real per-token cost (model calls)', () => {
     expect(status!.currentCalls).toBe(3);
     expect(status!.byTool[0]).toEqual({ tool: 'anthropic.proxy', callCount: 3, costUsd: 0.42 });
   });
+
+  it('charges flat cost per EXECUTION, not per paired request-log row', async () => {
+    // One allowed http.request call logs BOTH an 'allow' and an 'executed' row
+    // (callCount 2) but executed once — it must be charged once, not twice.
+    const sink = stubSink({
+      rows: [
+        {
+          actorName: 'agent',
+          actorRole: 'researcher',
+          tool: 'http.request',
+          day: '2026-04-19',
+          callCount: 2,
+          totalDurationMs: null,
+          decisions: { allow: 1, executed: 1 },
+          totalCostUsd: null,
+          totalTokens: null,
+        },
+      ],
+      totalCalls: 2,
+      distinctActors: 1,
+      distinctTools: 1,
+      filter: {},
+      generatedAt: new Date().toISOString(),
+    });
+    const status = await computeBudgetStatus(
+      policyWithBudget.budgets![0],
+      baseActor,
+      policyWithBudget,
+      sink
+    );
+    expect(status!.currentUsd).toBeCloseTo(0.01, 6); // 1 execution × $0.01, not $0.02
+    expect(status!.currentCalls).toBe(1);
+  });
 });
 
 describe('budget — per-run scope', () => {
