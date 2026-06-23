@@ -1,5 +1,5 @@
 import { config } from '../config.js';
-import { AuditEntry, Origin, ContextRef, ExecutionReceipt } from '../types.js';
+import { AuditEntry, Origin, ContextRef, ExecutionReceipt, ModelCallUsage } from '../types.js';
 import { getAuditSink, getPolicySource } from '../providers/index.js';
 
 /**
@@ -78,6 +78,10 @@ export function logToolExecution(params: {
   executionReceipt?: ExecutionReceipt;
   riskFlags: string[];
   approvalId?: string;
+  // Model-call metering (Anthropic proxy). Optional; omitted for non-model tools.
+  model?: string;
+  usage?: ModelCallUsage;
+  costUsd?: number | null;
 }): void {
   writeAuditLog({
     timestamp: new Date().toISOString(),
@@ -91,6 +95,9 @@ export function logToolExecution(params: {
     executionReceipt: params.executionReceipt,
     riskFlags: params.riskFlags,
     approvalId: params.approvalId,
+    model: params.model,
+    usage: params.usage,
+    costUsd: params.costUsd,
   });
 }
 

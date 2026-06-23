@@ -130,6 +130,16 @@ export interface PendingApproval {
   external?: boolean;
 }
 
+// Token usage for a model call, recorded on the audit row by the Anthropic
+// proxy. Tokens are always populated when the upstream response exposes them;
+// kept separate from cost so counts survive even when pricing is unknown.
+export interface ModelCallUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens?: number;
+  cacheCreationTokens?: number;
+}
+
 // Audit log entry
 export interface AuditEntry {
   timestamp: string;
@@ -153,6 +163,13 @@ export interface AuditEntry {
   origin?: Origin;
   taint?: string[];
   contextRefs?: ContextRef[];
+
+  // Model-call metering — set by the Anthropic proxy on the execution row.
+  // Absent on non-model tools. `costUsd` is null when the model isn't in the
+  // pricing table (tokens still recorded so cost can be backfilled later).
+  model?: string;
+  usage?: ModelCallUsage;
+  costUsd?: number | null;
 }
 
 // Usage / metering aggregation
