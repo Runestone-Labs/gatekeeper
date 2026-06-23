@@ -22,6 +22,13 @@
       "when": 1770415440000,
       "tag": "0002_add_audit_logs",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1782192143260,
+      "tag": "0003_add_model_cost_metering",
+      "breakpoints": true
     }
   ]
 }

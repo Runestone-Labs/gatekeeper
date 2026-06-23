@@ -518,8 +518,12 @@ app.post<{ Params: { toolName: string } }>('/tool/:toolName', async (request, re
 // Register approval routes
 registerApprovalRoutes(app);
 
-// Register the Anthropic model-call proxy (no-op unless ENABLE_ANTHROPIC_PROXY=true)
-registerAnthropicProxy(app);
+// Register the Anthropic model-call proxy (no-op unless ENABLE_ANTHROPIC_PROXY=true).
+// Wire the budget gate so per-run/per-actor caps apply to model calls too —
+// no-op unless a budgets[] rule matches the actor (observe-first default).
+registerAnthropicProxy(app, (actor) =>
+  enforceBudget('anthropic.proxy', actor, policy, getAuditSink())
+);
 
 // When the proxy is enabled, keep the model-pricing table fresh so proxied
 // model calls are metered at REAL per-token cost (not a nominal flat rate).

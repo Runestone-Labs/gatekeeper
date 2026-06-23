@@ -22,7 +22,7 @@ import { randomUUID } from 'node:crypto';
 import { config } from '../config.js';
 import { logToolRequest, logToolExecution } from '../audit/logger.js';
 import { priceCall } from '../pricing/index.js';
-import type { ModelCallUsage } from '../types.js';
+import type { ModelCallUsage, PolicyEvaluation } from '../types.js';
 
 const ANTHROPIC_UPSTREAM = 'https://api.anthropic.com';
 const PROXY_TOOL = 'anthropic.proxy';
@@ -52,6 +52,14 @@ const DROP_RESPONSE_HEADERS = new Set([
 ]);
 
 type Actor = { type: 'agent'; name: string; role: string; runId?: string };
+
+/**
+ * Optional pre-forward budget gate. Returns a denial to block the model call
+ * (e.g. a per-run cap already exceeded), or null to permit it. Injected by the
+ * server so the proxy stays decoupled from policy/sink wiring. Absent ⇒ no
+ * enforcement (observe-first default).
+ */
+export type ProxyBudgetCheck = (actor: Actor) => Promise<PolicyEvaluation | null>;
 
 /** Build the upstream URL from the wildcard subpath + querystring. Host is fixed. */
 export function buildUpstreamUrl(wildcardPath: string, search: string): string {
@@ -230,7 +238,7 @@ function costFor(model: string | undefined, usage: ModelCallUsage | null): numbe
 }
 
 /** Register the proxy route (no-op unless ENABLE_ANTHROPIC_PROXY=true). */
-export function registerAnthropicProxy(app: FastifyInstance): void {
+export function registerAnthropicProxy(app: FastifyInstance, budgetCheck?: ProxyBudgetCheck): void {
   if (!config.enableAnthropicProxy) return;
 
   app.all<{ Params: { '*': string } }>(
@@ -242,6 +250,33 @@ export function registerAnthropicProxy(app: FastifyInstance): void {
       const search = request.url.includes('?') ? request.url.slice(request.url.indexOf('?')) : '';
       const url = buildUpstreamUrl(request.params['*'] ?? '', search);
       const argsSummary = summarizeAnthropicBody(request.body);
+
+      // Per-run / per-actor budget gate at the ACTION boundary: if the run has
+      // already burned its cap, deny BEFORE the (costly) model call. No-op
+      // unless a budget rule matches the actor (observe-first default).
+      if (budgetCheck) {
+        const denial = await budgetCheck(actor);
+        if (denial) {
+          logToolRequest({
+            requestId,
+            tool: PROXY_TOOL,
+            decision: 'deny',
+            actor,
+            argsSummary,
+            riskFlags: denial.riskFlags,
+            reasonCode: denial.reasonCode,
+            humanExplanation: denial.humanExplanation,
+            remediation: denial.remediation,
+          });
+          reply.status(403).send({
+            type: 'error',
+            error: { type: 'budget_exceeded', message: denial.humanExplanation },
+            reasonCode: denial.reasonCode,
+            remediation: denial.remediation,
+          });
+          return reply;
+        }
+      }
 
       // Policy seam: audited + allowed (observe-first, like budgets). A future
       // policy evaluation would deny here.

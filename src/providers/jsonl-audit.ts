@@ -1,8 +1,19 @@
 import { appendFileSync, mkdirSync, existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { config } from '../config.js';
-import { AuditEntry, UsageFilter, UsageRow, UsageSummary } from '../types.js';
+import { AuditEntry, ModelCallUsage, UsageFilter, UsageRow, UsageSummary } from '../types.js';
 import { AuditSink } from './types.js';
+
+/** Total billable tokens for a model call (input + output + cache tiers), or null. */
+export function sumUsageTokens(usage: ModelCallUsage | undefined): number | null {
+  if (!usage) return null;
+  return (
+    usage.inputTokens +
+    usage.outputTokens +
+    (usage.cacheReadTokens ?? 0) +
+    (usage.cacheCreationTokens ?? 0)
+  );
+}
 
 /**
  * JSONL audit sink - writes audit entries to daily log files.
@@ -69,6 +80,8 @@ export class JsonlAuditSink implements AuditSink {
         callCount: number;
         totalDurationMs: number | null;
         decisions: Record<string, number>;
+        totalCostUsd: number | null;
+        totalTokens: number | null;
       }
     >();
 
@@ -102,6 +115,7 @@ export class JsonlAuditSink implements AuditSink {
         if (filter.actorName && actorName !== filter.actorName) continue;
         if (filter.actorRole && actorRole !== filter.actorRole) continue;
         if (filter.tool && entry.tool !== filter.tool) continue;
+        if (filter.runId && entry.actor?.runId !== filter.runId) continue;
 
         const day = entry.timestamp.slice(0, 10);
         const key = `${actorName ?? ''}\x01${actorRole ?? ''}\x01${entry.tool}\x01${day}`;
@@ -115,6 +129,8 @@ export class JsonlAuditSink implements AuditSink {
             callCount: 0,
             totalDurationMs: null,
             decisions: {},
+            totalCostUsd: null,
+            totalTokens: null,
           };
           buckets.set(key, bucket);
         }
@@ -123,6 +139,13 @@ export class JsonlAuditSink implements AuditSink {
         const dur = entry.executionReceipt?.durationMs;
         if (typeof dur === 'number') {
           bucket.totalDurationMs = (bucket.totalDurationMs ?? 0) + dur;
+        }
+        if (typeof entry.costUsd === 'number') {
+          bucket.totalCostUsd = (bucket.totalCostUsd ?? 0) + entry.costUsd;
+        }
+        const tokens = sumUsageTokens(entry.usage);
+        if (tokens != null) {
+          bucket.totalTokens = (bucket.totalTokens ?? 0) + tokens;
         }
       }
     }

@@ -299,6 +299,68 @@ describe('anthropic proxy — route', () => {
     vi.unstubAllGlobals();
   });
 
+  it('budget gate denies (403) and audits without forwarding when the run cap is hit', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const app = Fastify();
+    registerAnthropicProxy(app, async () => ({
+      decision: 'deny',
+      reason: 'Budget "per-run" exceeded',
+      reasonCode: 'RUN_BUDGET_EXCEEDED',
+      humanExplanation: 'Run run-1 has spent $5.50 of the $5.00 "per-run" budget.',
+      remediation: 'Start a new run or raise the ceiling.',
+      riskFlags: ['budget_exceeded', 'run_budget_exceeded'],
+    }));
+    await app.ready();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/anthropic/v1/messages',
+      headers: { 'content-type': 'application/json', 'x-runestone-run-id': 'run-1' },
+      payload: { model: 'claude-opus-4-7', messages: [] },
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(fetchMock).not.toHaveBeenCalled(); // never reached the upstream model call
+    expect(JSON.parse(res.body).reasonCode).toBe('RUN_BUDGET_EXCEEDED');
+    expect(logToolRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tool: 'anthropic.proxy',
+        decision: 'deny',
+        reasonCode: 'RUN_BUDGET_EXCEEDED',
+      })
+    );
+
+    await app.close();
+    vi.unstubAllGlobals();
+  });
+
+  it('budget gate permits (null) → forwards the call as normal', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response('{"id":"msg_ok"}', {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+      )
+    );
+    const app = Fastify();
+    registerAnthropicProxy(app, async () => null);
+    await app.ready();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/anthropic/v1/messages',
+      headers: { 'content-type': 'application/json' },
+      payload: { model: 'claude-opus-4-7', messages: [] },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('msg_ok');
+    await app.close();
+    vi.unstubAllGlobals();
+  });
+
   it('parses usage from a streamed SSE response without breaking the stream', async () => {
     const sse = [
       'event: message_start',
