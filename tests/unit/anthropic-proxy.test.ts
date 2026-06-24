@@ -17,6 +17,9 @@ import {
   filterResponseHeaders,
   summarizeAnthropicBody,
   extractActor,
+  mergeAnthropicUsage,
+  extractUsageFromJson,
+  consumeSSEUsage,
   registerAnthropicProxy,
 } from '../../src/proxy/anthropic.js';
 
@@ -90,6 +93,69 @@ describe('anthropic proxy — pure helpers', () => {
       name: 'researcher',
       role: 'analyst',
     });
+  });
+
+  it('extractActor threads x-runestone-run-id for per-run correlation', () => {
+    expect(extractActor({ 'x-runestone-run-id': 'run-123' })).toEqual({
+      type: 'agent',
+      name: 'openclaw',
+      role: 'openclaw',
+      runId: 'run-123',
+    });
+    // No runId key when the header is absent (keeps existing actor shape).
+    expect('runId' in extractActor({})).toBe(false);
+  });
+});
+
+describe('anthropic proxy — usage parsing', () => {
+  it('mergeAnthropicUsage coerces string counts and takes the max (cumulative SSE)', () => {
+    const acc = { inputTokens: 0, outputTokens: 0 };
+    expect(
+      mergeAnthropicUsage(acc, { input_tokens: '1000', cache_read_input_tokens: 200 })
+    ).toBe(true);
+    mergeAnthropicUsage(acc, { output_tokens: 10 });
+    mergeAnthropicUsage(acc, { output_tokens: 500 }); // later delta supersedes
+    expect(acc).toEqual({ inputTokens: 1000, outputTokens: 500, cacheReadTokens: 200 });
+    expect(mergeAnthropicUsage({ inputTokens: 0, outputTokens: 0 }, { foo: 1 })).toBe(false);
+  });
+
+  it('extractUsageFromJson reads usage from a non-streaming message body', () => {
+    const usage = extractUsageFromJson(
+      JSON.stringify({
+        id: 'msg_1',
+        usage: {
+          input_tokens: 1000,
+          output_tokens: 500,
+          cache_read_input_tokens: 200,
+          cache_creation_input_tokens: 50,
+        },
+      })
+    );
+    expect(usage).toEqual({
+      inputTokens: 1000,
+      outputTokens: 500,
+      cacheReadTokens: 200,
+      cacheCreationTokens: 50,
+    });
+    expect(extractUsageFromJson('{"id":"msg_1"}')).toBeNull();
+    expect(extractUsageFromJson('not json')).toBeNull();
+  });
+
+  it('consumeSSEUsage accumulates input from message_start and final output from message_delta', async () => {
+    const sse = [
+      'event: message_start',
+      'data: {"type":"message_start","message":{"usage":{"input_tokens":1000,"cache_read_input_tokens":200,"output_tokens":1}}}',
+      '',
+      'event: message_delta',
+      'data: {"type":"message_delta","usage":{"output_tokens":500}}',
+      '',
+      'event: message_stop',
+      'data: {"type":"message_stop"}',
+      '',
+    ].join('\n');
+    const stream = new Response(sse).body as ReadableStream<Uint8Array>;
+    const usage = await consumeSSEUsage(stream);
+    expect(usage).toEqual({ inputTokens: 1000, outputTokens: 500, cacheReadTokens: 200 });
   });
 });
 
@@ -183,5 +249,160 @@ describe('anthropic proxy — route', () => {
     const res = await app.inject({ method: 'POST', url: '/anthropic/v1/messages', payload: {} });
     expect(res.statusCode).toBe(404);
     await app.close();
+  });
+
+  it('stamps real token usage + USD cost on the audit row (non-streaming)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              id: 'msg_1',
+              usage: {
+                input_tokens: 1000,
+                output_tokens: 500,
+                cache_read_input_tokens: 200,
+              },
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } }
+          )
+      )
+    );
+    const app = Fastify();
+    registerAnthropicProxy(app);
+    await app.ready();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/anthropic/v1/messages',
+      headers: { 'content-type': 'application/json', 'x-runestone-run-id': 'run-xyz' },
+      payload: { model: 'claude-opus-4-7', messages: [{ role: 'user', content: 'hi' }] },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('msg_1');
+
+    // run-id flows onto the audited actor for per-run budget correlation.
+    expect(logToolRequest.mock.calls[0][0].actor).toEqual(
+      expect.objectContaining({ runId: 'run-xyz' })
+    );
+
+    // Execution row carries model, usage, and real cost.
+    const execArg = logToolExecution.mock.calls[0][0];
+    expect(execArg.tool).toBe('anthropic.proxy');
+    expect(execArg.model).toBe('claude-opus-4-7');
+    expect(execArg.usage).toEqual({ inputTokens: 1000, outputTokens: 500, cacheReadTokens: 200 });
+    // opus-4-7: 1000*15 + 500*75 + 200*1.5 per 1M = 0.015 + 0.0375 + 0.0003
+    expect(execArg.costUsd).toBeCloseTo(0.0528, 6);
+
+    await app.close();
+    vi.unstubAllGlobals();
+  });
+
+  it('budget gate denies (403) and audits without forwarding when the run cap is hit', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const app = Fastify();
+    registerAnthropicProxy(app, async () => ({
+      decision: 'deny',
+      reason: 'Budget "per-run" exceeded',
+      reasonCode: 'RUN_BUDGET_EXCEEDED',
+      humanExplanation: 'Run run-1 has spent $5.50 of the $5.00 "per-run" budget.',
+      remediation: 'Start a new run or raise the ceiling.',
+      riskFlags: ['budget_exceeded', 'run_budget_exceeded'],
+    }));
+    await app.ready();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/anthropic/v1/messages',
+      headers: { 'content-type': 'application/json', 'x-runestone-run-id': 'run-1' },
+      payload: { model: 'claude-opus-4-7', messages: [] },
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(fetchMock).not.toHaveBeenCalled(); // never reached the upstream model call
+    expect(JSON.parse(res.body).reasonCode).toBe('RUN_BUDGET_EXCEEDED');
+    expect(logToolRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tool: 'anthropic.proxy',
+        decision: 'deny',
+        reasonCode: 'RUN_BUDGET_EXCEEDED',
+      })
+    );
+
+    await app.close();
+    vi.unstubAllGlobals();
+  });
+
+  it('budget gate permits (null) → forwards the call as normal', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response('{"id":"msg_ok"}', {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+      )
+    );
+    const app = Fastify();
+    registerAnthropicProxy(app, async () => null);
+    await app.ready();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/anthropic/v1/messages',
+      headers: { 'content-type': 'application/json' },
+      payload: { model: 'claude-opus-4-7', messages: [] },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('msg_ok');
+    await app.close();
+    vi.unstubAllGlobals();
+  });
+
+  it('parses usage from a streamed SSE response without breaking the stream', async () => {
+    const sse = [
+      'event: message_start',
+      'data: {"type":"message_start","message":{"usage":{"input_tokens":1000,"cache_read_input_tokens":200,"output_tokens":1}}}',
+      '',
+      'event: message_delta',
+      'data: {"type":"message_delta","usage":{"output_tokens":500}}',
+      '',
+      'event: message_stop',
+      'data: {"type":"message_stop"}',
+      '',
+    ].join('\n');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(sse, { status: 200, headers: { 'content-type': 'text/event-stream' } })
+      )
+    );
+    const app = Fastify();
+    registerAnthropicProxy(app);
+    await app.ready();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/anthropic/v1/messages',
+      headers: { 'content-type': 'application/json' },
+      payload: { model: 'claude-opus-4-7', stream: true, messages: [{ role: 'user', content: 'hi' }] },
+    });
+    // Client still receives the full SSE body unmodified.
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('message_delta');
+
+    // Usage is parsed off the teed branch and logged once the stream completes.
+    await vi.waitFor(() => {
+      const exec = logToolExecution.mock.calls.find((c) => c[0].usage);
+      expect(exec).toBeTruthy();
+      expect(exec![0].usage).toEqual({ inputTokens: 1000, outputTokens: 500, cacheReadTokens: 200 });
+      expect(exec![0].costUsd).toBeCloseTo(0.0528, 6);
+    });
+
+    await app.close();
+    vi.unstubAllGlobals();
   });
 });

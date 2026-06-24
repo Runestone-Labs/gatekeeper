@@ -130,6 +130,16 @@ export interface PendingApproval {
   external?: boolean;
 }
 
+// Token usage for a model call, recorded on the audit row by the Anthropic
+// proxy. Tokens are always populated when the upstream response exposes them;
+// kept separate from cost so counts survive even when pricing is unknown.
+export interface ModelCallUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens?: number;
+  cacheCreationTokens?: number;
+}
+
 // Audit log entry
 export interface AuditEntry {
   timestamp: string;
@@ -153,6 +163,13 @@ export interface AuditEntry {
   origin?: Origin;
   taint?: string[];
   contextRefs?: ContextRef[];
+
+  // Model-call metering — set by the Anthropic proxy on the execution row.
+  // Absent on non-model tools. `costUsd` is null when the model isn't in the
+  // pricing table (tokens still recorded so cost can be backfilled later).
+  model?: string;
+  usage?: ModelCallUsage;
+  costUsd?: number | null;
 }
 
 // Usage / metering aggregation
@@ -165,6 +182,8 @@ export interface UsageFilter {
   actorName?: string;
   actorRole?: string;
   tool?: string;
+  /** Restrict to a single agentic run (matched on actor.runId). Powers per-run budgets. */
+  runId?: string;
   /** Hard cap on returned rows. Defaults to 500. */
   limit?: number;
 }
@@ -179,6 +198,14 @@ export interface UsageRow {
   totalDurationMs: number | null;
   /** Distribution of decisions in this bucket. */
   decisions: Record<string, number>;
+  /**
+   * Sum of REAL per-call costUsd in the bucket (e.g. proxied model calls).
+   * Null/absent when no row carried a real cost — budget enforcement then falls
+   * back to the tool's nominal flat `cost_usd`.
+   */
+  totalCostUsd?: number | null;
+  /** Sum of input+output+cache tokens across model calls in the bucket. */
+  totalTokens?: number | null;
 }
 
 export interface UsageSummary {
@@ -240,6 +267,8 @@ export enum BudgetMode {
   Soft = 'soft',
 }
 
+export type BudgetScope = 'actor' | 'run';
+
 export interface BudgetRule {
   /** Descriptive name surfaced in denial reasons and dashboards. */
   name: string;
@@ -248,10 +277,22 @@ export interface BudgetRule {
     actor_role?: string;
     actor_name?: string;
   };
-  /** Rolling window for the max_usd cap. */
+  /**
+   * What the cap applies to. 'actor' (default): aggregate spend by a matched
+   * actor across the rolling window — a monthly-bill guardrail. 'run': cap a
+   * SINGLE agentic run (all calls sharing actor.runId), which is where
+   * recursive/agentic burn actually compounds. A run-scoped rule is skipped for
+   * calls without a runId (nothing to key on).
+   */
+  scope?: BudgetScope;
+  /** Rolling window for the cap. For run scope it bounds how far back to look. */
   window: BudgetWindow;
-  /** Maximum USD that matched actors may accrue within the window. */
+  /** Maximum USD that matched actors (or a single run) may accrue. */
   max_usd: number;
+  /** Optional token ceiling (sum of input+output+cache tokens across the scope). */
+  max_tokens?: number;
+  /** Optional tool-call-count ceiling across the scope. */
+  max_calls?: number;
   /** Enforcement mode. Defaults to BudgetMode.Hard. */
   mode?: BudgetMode;
 }

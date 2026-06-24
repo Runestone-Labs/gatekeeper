@@ -203,8 +203,12 @@ function mergeSensitiveBoundaries(
   return Array.from(byId.values());
 }
 
-/** Parse the optional top-level `budgets:` array into BudgetRule entries. */
-function normalizeBudgets(value: unknown): BudgetRule[] | undefined {
+/**
+ * Parse the optional top-level `budgets:` array into BudgetRule entries.
+ * Exported so the runtime YAML provider (YamlPolicySource) shares one canonical
+ * parser — including the per-run scope and token/call ceilings.
+ */
+export function normalizeBudgets(value: unknown): BudgetRule[] | undefined {
   if (!Array.isArray(value) || value.length === 0) return undefined;
   const out: BudgetRule[] = [];
   for (const raw of value) {
@@ -230,7 +234,11 @@ function normalizeBudgets(value: unknown): BudgetRule[] | undefined {
       throw new Error(`Budget rule "${name}" must specify match.actor_name or match.actor_role`);
     }
     const mode = r.mode === BudgetMode.Soft ? BudgetMode.Soft : BudgetMode.Hard;
-    out.push({ name, window, max_usd, match: { actor_name, actor_role }, mode });
+    const rule: BudgetRule = { name, window, max_usd, match: { actor_name, actor_role }, mode };
+    if (r.scope === 'run') rule.scope = 'run';
+    if (typeof r.max_tokens === 'number') rule.max_tokens = r.max_tokens;
+    if (typeof r.max_calls === 'number') rule.max_calls = r.max_calls;
+    out.push(rule);
   }
   return out.length > 0 ? out : undefined;
 }

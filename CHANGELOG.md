@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-23
+
+### Added
+
+- **Real per-token model-call metering.** The Anthropic proxy now parses
+  upstream token usage and stamps `model`, `usage`, and a real per-token
+  `costUsd` onto the execution audit row — non-streaming JSON is buffered and
+  parsed; SSE responses are `tee()`'d so the client streams token-by-token
+  uninterrupted while a background consumer reads usage off the second branch.
+  A self-contained pricing table (`src/pricing/`) computes cost (cache-tier
+  aware) and refreshes daily from LiteLLM's community JSON. Closes the gap where
+  proxied model calls contributed **$0** to budgets.
+- **Per-run budgets.** A new `scope: run` budget caps a *single agentic run*
+  (all calls sharing `actor.runId`) by USD, tokens, and/or call count — the unit
+  where recursive/agentic burn compounds. Denies `RUN_BUDGET_EXCEEDED` at the
+  action boundary via the existing allow/approve/deny + signed-approval
+  machinery; the Anthropic proxy enforces it *before* the costly model call.
+  An actor may now carry both an actor-scoped guardrail and a per-run cap (all
+  matching rules are enforced). Ships disabled (observe-first).
+- **Run correlation (`runId`)** threaded end-to-end: `x-runestone-run-id` on the
+  proxy, `runId` on the TypeScript client, and `GATEKEEPER_RUN_ID` for the MCP
+  server and Claude Code hook (hook falls back to the session id).
+- `/usage` and budget aggregation now expose real summed `totalCostUsd` /
+  `totalTokens` per bucket and support a `runId` filter (jsonl + Postgres sinks).
+
+### Changed
+
+- `audit_logs` gains `model` / `usage` / `cost_usd` columns (drizzle migration
+  `0003`). `drizzle.config.ts` now targets the schema files directly so
+  `db:generate` works (the barrel's ESM `.js` re-export broke drizzle-kit's
+  loader). `AuditEntry`, `logToolExecution`, `UsageRow`, `UsageFilter`, and
+  `BudgetRule` gain optional fields; all changes are backward compatible.
+
 ## [0.5.0] - 2026-06-19
 
 ### Added

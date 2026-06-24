@@ -2,12 +2,13 @@ import { describe, it, expect } from 'vitest';
 import {
   enforceBudget,
   matchBudgetRule,
+  matchBudgetRules,
   computeBudgetStatus,
   windowStartISO,
 } from '../../src/budget/enforcer.js';
 import type { AuditSink } from '../../src/providers/types.js';
 import { BudgetMode, BudgetWindow } from '../../src/types.js';
-import type { Policy, UsageSummary, UsageFilter, Actor } from '../../src/types.js';
+import type { Policy, UsageRow, UsageSummary, UsageFilter, Actor } from '../../src/types.js';
 
 /** Stub audit sink that returns a scripted summary from summarizeUsage. */
 function stubSink(summaries: UsageSummary | Error | null): AuditSink {
@@ -50,7 +51,60 @@ function makeSummary(rows: Array<{ tool: string; callCount: number }>): UsageSum
   };
 }
 
+/** Summary builder that supports real per-row cost + tokens (model calls). */
+function makeRichSummary(
+  rows: Array<{
+    tool: string;
+    callCount: number;
+    totalCostUsd?: number | null;
+    totalTokens?: number | null;
+    actorName?: string;
+    actorRole?: string;
+    runId?: string;
+  }>
+): UsageSummary {
+  const usageRows: UsageRow[] = rows.map((r) => ({
+    actorName: r.actorName ?? 'openclaw',
+    actorRole: r.actorRole ?? 'openclaw',
+    tool: r.tool,
+    day: '2026-04-19',
+    callCount: r.callCount,
+    totalDurationMs: null,
+    decisions: { executed: r.callCount },
+    totalCostUsd: r.totalCostUsd ?? null,
+    totalTokens: r.totalTokens ?? null,
+  }));
+  return {
+    rows: usageRows,
+    totalCalls: rows.reduce((s, r) => s + r.callCount, 0),
+    distinctActors: 1,
+    distinctTools: rows.length,
+    filter: {},
+    generatedAt: new Date().toISOString(),
+  };
+}
+
 const baseActor: Actor = { type: 'agent', name: 'agent', role: 'researcher' };
+
+const runActor: Actor = { type: 'agent', name: 'openclaw', role: 'openclaw', runId: 'run-1' };
+
+// Per-run budget: caps a single agentic run (keyed on runId), with USD + token +
+// call ceilings. anthropic.proxy has no flat cost_usd — real cost lands on the
+// audit row post-call, so run-scope must enforce on accrued spend.
+const runPolicy: Policy = {
+  tools: { 'anthropic.proxy': { decision: 'allow' } },
+  budgets: [
+    {
+      name: 'per-run',
+      match: { actor_role: 'openclaw' },
+      scope: 'run',
+      window: BudgetWindow.Day,
+      max_usd: 5,
+      max_tokens: 1_000_000,
+      max_calls: 200,
+    },
+  ],
+};
 
 const policyWithBudget: Policy = {
   tools: {
@@ -209,5 +263,136 @@ describe('budget enforceBudget', () => {
     const adminActor: Actor = { type: 'agent', name: 'admin', role: 'admin' };
     const result = await enforceBudget('http.request', adminActor, policyWithBudget, sink);
     expect(result).toBeNull();
+  });
+});
+
+describe('budget — real per-token cost (model calls)', () => {
+  const rule = runPolicy.budgets![0];
+
+  it('uses real summed cost + tokens when present (overrides flat cost_usd)', async () => {
+    // anthropic.proxy has no flat cost_usd; the audit row's real costUsd carries it.
+    const sink = stubSink(
+      makeRichSummary([
+        { tool: 'anthropic.proxy', callCount: 3, totalCostUsd: 0.42, totalTokens: 120_000 },
+      ])
+    );
+    const status = await computeBudgetStatus(rule, runActor, runPolicy, sink, {
+      runId: runActor.runId,
+    });
+    expect(status!.currentUsd).toBeCloseTo(0.42, 6);
+    expect(status!.currentTokens).toBe(120_000);
+    expect(status!.currentCalls).toBe(3);
+    expect(status!.byTool[0]).toEqual({ tool: 'anthropic.proxy', callCount: 3, costUsd: 0.42 });
+  });
+
+  it('charges flat cost per EXECUTION, not per paired request-log row', async () => {
+    // One allowed http.request call logs BOTH an 'allow' and an 'executed' row
+    // (callCount 2) but executed once — it must be charged once, not twice.
+    const sink = stubSink({
+      rows: [
+        {
+          actorName: 'agent',
+          actorRole: 'researcher',
+          tool: 'http.request',
+          day: '2026-04-19',
+          callCount: 2,
+          totalDurationMs: null,
+          decisions: { allow: 1, executed: 1 },
+          totalCostUsd: null,
+          totalTokens: null,
+        },
+      ],
+      totalCalls: 2,
+      distinctActors: 1,
+      distinctTools: 1,
+      filter: {},
+      generatedAt: new Date().toISOString(),
+    });
+    const status = await computeBudgetStatus(
+      policyWithBudget.budgets![0],
+      baseActor,
+      policyWithBudget,
+      sink
+    );
+    expect(status!.currentUsd).toBeCloseTo(0.01, 6); // 1 execution × $0.01, not $0.02
+    expect(status!.currentCalls).toBe(1);
+  });
+});
+
+describe('budget — per-run scope', () => {
+  it('matchBudgetRules returns every matching rule; matchBudgetRule returns the first', () => {
+    const policy: Policy = {
+      tools: {},
+      budgets: [
+        { name: 'daily', match: { actor_role: 'openclaw' }, window: BudgetWindow.Day, max_usd: 50 },
+        runPolicy.budgets![0],
+      ],
+    };
+    expect(matchBudgetRules(runActor, policy).map((r) => r.name)).toEqual(['daily', 'per-run']);
+    expect(matchBudgetRule(runActor, policy)?.name).toBe('daily');
+  });
+
+  it('denies the model call when the run USD cap is exceeded', async () => {
+    const sink = stubSink(
+      makeRichSummary([
+        { tool: 'anthropic.proxy', callCount: 10, totalCostUsd: 5.5, totalTokens: 400_000 },
+      ])
+    );
+    const res = await enforceBudget('anthropic.proxy', runActor, runPolicy, sink);
+    expect(res).not.toBeNull();
+    expect(res!.reasonCode).toBe('RUN_BUDGET_EXCEEDED');
+    expect(res!.humanExplanation).toContain('run-1');
+    expect(res!.humanExplanation).toContain('$5.00');
+    expect(res!.riskFlags).toContain('run_budget_exceeded');
+  });
+
+  it('denies on the token ceiling (USD + calls still under)', async () => {
+    const sink = stubSink(
+      makeRichSummary([
+        { tool: 'anthropic.proxy', callCount: 5, totalCostUsd: 0.1, totalTokens: 1_000_000 },
+      ])
+    );
+    const res = await enforceBudget('anthropic.proxy', runActor, runPolicy, sink);
+    expect(res!.reasonCode).toBe('RUN_BUDGET_EXCEEDED');
+    expect(res!.humanExplanation).toContain('token');
+  });
+
+  it('denies on the call-count ceiling (USD + tokens still under)', async () => {
+    const sink = stubSink(
+      makeRichSummary([
+        { tool: 'anthropic.proxy', callCount: 200, totalCostUsd: 0.1, totalTokens: 50_000 },
+      ])
+    );
+    const res = await enforceBudget('anthropic.proxy', runActor, runPolicy, sink);
+    expect(res!.reasonCode).toBe('RUN_BUDGET_EXCEEDED');
+    expect(res!.humanExplanation).toContain('call');
+  });
+
+  it('permits when the run is under every ceiling', async () => {
+    const sink = stubSink(
+      makeRichSummary([
+        { tool: 'anthropic.proxy', callCount: 5, totalCostUsd: 1.2, totalTokens: 300_000 },
+      ])
+    );
+    expect(await enforceBudget('anthropic.proxy', runActor, runPolicy, sink)).toBeNull();
+  });
+
+  it('skips per-run enforcement when the actor carries no runId', async () => {
+    const noRun: Actor = { type: 'agent', name: 'openclaw', role: 'openclaw' };
+    const sink = stubSink(
+      makeRichSummary([{ tool: 'anthropic.proxy', callCount: 10, totalCostUsd: 999 }])
+    );
+    expect(await enforceBudget('anthropic.proxy', noRun, runPolicy, sink)).toBeNull();
+  });
+
+  it('soft mode observes without blocking even when the run is over', async () => {
+    const softPolicy: Policy = {
+      ...runPolicy,
+      budgets: [{ ...runPolicy.budgets![0], mode: BudgetMode.Soft }],
+    };
+    const sink = stubSink(
+      makeRichSummary([{ tool: 'anthropic.proxy', callCount: 10, totalCostUsd: 99 }])
+    );
+    expect(await enforceBudget('anthropic.proxy', runActor, softPolicy, sink)).toBeNull();
   });
 });

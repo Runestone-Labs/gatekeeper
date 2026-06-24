@@ -156,12 +156,16 @@ tools:
 #     message: "Reading from 1Password CLI requires approval."
 #     safer_alternative: "Stage the secret into a scoped env var instead."
 
-# Optional: per-actor spending caps. Applied after other policy checks.
-# Each rule matches an actor by name and/or role, sums the cost_usd of all
-# recent calls within a rolling window, and rejects (or soft-flags) calls
-# that would push the total over max_usd.
+# Optional: spending caps. Applied after other policy checks. Each rule sums
+# spend across its scope and rejects (or soft-flags) calls that would exceed a
+# ceiling. Spend is REAL per-token cost for proxied model calls (anthropic.proxy)
+# and the nominal `cost_usd` for other tools.
+#
+# Budgets ship DISABLED on purpose (observe-first): watch /usage and /llm-usage
+# for a week or two, then set caps around ~2x your observed p95 before enabling.
 #
 # budgets:
+#   # ── actor scope: a rolling monthly-bill guardrail ───────────────────────
 #   - name: researcher-daily
 #     match:
 #       actor_role: researcher
@@ -169,6 +173,21 @@ tools:
 #     max_usd: 5.00
 #     mode: hard           # hard (default): reject with BUDGET_EXCEEDED
 #                          # soft: permit but log a risk flag
+#
+#   # ── run scope: cap a SINGLE agentic run, where recursive burn compounds ──
+#   # Keyed on the actor's runId (set via x-runestone-run-id on the proxy, the
+#   # client `runId`, GATEKEEPER_RUN_ID for the MCP server / hook, or actor.runId
+#   # on /tool calls). Skipped for calls without a runId. Denies RUN_BUDGET_EXCEEDED
+#   # at the action boundary — pair with require_approval for an approve-to-continue UX.
+#   - name: per-run-cap
+#     match:
+#       actor_role: openclaw
+#     scope: run
+#     window: day          # bounds how far back to aggregate the run's calls
+#     max_usd: 5.00        # stop a single run at $5 of real spend
+#     max_tokens: 5000000  # …or 5M tokens
+#     max_calls: 200       # …or 200 tool/model calls (kills recursive loops)
+#     mode: hard
 #
 #   - name: specific-agent-hourly
 #     match:

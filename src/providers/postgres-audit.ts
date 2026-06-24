@@ -47,6 +47,9 @@ export class PostgresAuditSink implements AuditSink {
         origin: entry.origin,
         taint: entry.taint ?? [],
         contextRefs: entry.contextRefs ?? [],
+        model: entry.model ?? null,
+        usage: entry.usage ?? null,
+        costUsd: entry.costUsd ?? null,
       });
     } catch (err) {
       console.error('Failed to write audit log to postgres:', err);
@@ -76,6 +79,7 @@ export class PostgresAuditSink implements AuditSink {
     if (filter.tool) wheres.push(sql`${auditLogs.tool} = ${filter.tool}`);
     if (filter.actorName) wheres.push(sql`${auditLogs.actor}->>'name' = ${filter.actorName}`);
     if (filter.actorRole) wheres.push(sql`${auditLogs.actor}->>'role' = ${filter.actorRole}`);
+    if (filter.runId) wheres.push(sql`${auditLogs.actor}->>'runId' = ${filter.runId}`);
 
     // drizzle's sql.join uses a separator; build clause manually
     let whereClause = sql``;
@@ -93,6 +97,8 @@ export class PostgresAuditSink implements AuditSink {
       day: string;
       call_count: string; // COUNT(*) returns bigint → string in pg driver
       total_duration_ms: string | null;
+      total_cost_usd: string | number | null;
+      total_tokens: string | null;
       decisions: Array<{ decision: string; n: string }>;
     };
     const queryResult = await db.execute<UsageQueryRow>(sql`
@@ -108,6 +114,15 @@ export class PostgresAuditSink implements AuditSink {
             0
           )
         ) AS total_duration_ms,
+        SUM(${auditLogs.costUsd}) AS total_cost_usd,
+        SUM(
+          CASE WHEN ${auditLogs.usage} IS NOT NULL THEN
+            COALESCE((${auditLogs.usage}->>'inputTokens')::BIGINT, 0)
+            + COALESCE((${auditLogs.usage}->>'outputTokens')::BIGINT, 0)
+            + COALESCE((${auditLogs.usage}->>'cacheReadTokens')::BIGINT, 0)
+            + COALESCE((${auditLogs.usage}->>'cacheCreationTokens')::BIGINT, 0)
+          END
+        ) AS total_tokens,
         jsonb_agg(jsonb_build_object('decision', ${auditLogs.decision}, 'n', 1)) AS decisions
       FROM ${auditLogs}
       ${whereClause}
@@ -131,6 +146,8 @@ export class PostgresAuditSink implements AuditSink {
         day: r.day,
         callCount: Number(r.call_count),
         totalDurationMs: r.total_duration_ms == null ? null : Number(r.total_duration_ms),
+        totalCostUsd: r.total_cost_usd == null ? null : Number(r.total_cost_usd),
+        totalTokens: r.total_tokens == null ? null : Number(r.total_tokens),
         decisions: decisionCounts,
       };
     });

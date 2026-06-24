@@ -1,4 +1,12 @@
-import { pgTable, uuid, varchar, text, jsonb, timestamp } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  varchar,
+  text,
+  jsonb,
+  timestamp,
+  doublePrecision,
+} from 'drizzle-orm/pg-core';
 
 /**
  * Audit logs: Policy decisions and tool executions
@@ -24,6 +32,10 @@ export const auditLogs = pgTable('audit_logs', {
   origin: varchar('origin', { length: 50 }),
   taint: jsonb('taint').default([]),
   contextRefs: jsonb('context_refs').default([]),
+  // Model-call metering (Anthropic proxy). Null for non-model tools.
+  model: varchar('model', { length: 100 }),
+  usage: jsonb('usage'),
+  costUsd: doublePrecision('cost_usd'),
 });
 
 export type AuditLog = typeof auditLogs.$inferSelect;
