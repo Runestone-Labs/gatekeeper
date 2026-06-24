@@ -28,7 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   matching rules are enforced). Ships disabled (observe-first).
 - **Run correlation (`runId`)** threaded end-to-end: `x-runestone-run-id` on the
   proxy, `runId` on the TypeScript client, and `GATEKEEPER_RUN_ID` for the MCP
-  server and Claude Code hook (hook falls back to the session id).
+  server and Claude Code hook (hook falls back to the session id). For callers
+  that can't set headers (e.g. the Claude Agent SDK, which only exposes
+  `ANTHROPIC_BASE_URL`), the proxy also recovers the run id from an
+  `…/anthropic/_run/<runId>` base-URL prefix.
 - `/usage` and budget aggregation now expose real summed `totalCostUsd` /
   `totalTokens` per bucket and support a `runId` filter (jsonl + Postgres sinks).
 

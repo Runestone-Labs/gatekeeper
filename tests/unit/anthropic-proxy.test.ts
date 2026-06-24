@@ -20,6 +20,7 @@ import {
   mergeAnthropicUsage,
   extractUsageFromJson,
   consumeSSEUsage,
+  stripRunPrefix,
   registerAnthropicProxy,
 } from '../../src/proxy/anthropic.js';
 
@@ -93,6 +94,20 @@ describe('anthropic proxy — pure helpers', () => {
       name: 'researcher',
       role: 'analyst',
     });
+  });
+
+  it('stripRunPrefix recovers a run id from an `_run/<id>/` base-URL prefix', () => {
+    expect(stripRunPrefix('_run/abc-123/v1/messages')).toEqual({
+      path: 'v1/messages',
+      runId: 'abc-123',
+    });
+    // URL-encoded id + count_tokens subpath
+    expect(stripRunPrefix('_run/run%2F9/v1/messages/count_tokens')).toEqual({
+      path: 'v1/messages/count_tokens',
+      runId: 'run/9',
+    });
+    // No prefix → path unchanged, no runId
+    expect(stripRunPrefix('v1/messages')).toEqual({ path: 'v1/messages' });
   });
 
   it('extractActor threads x-runestone-run-id for per-run correlation', () => {
@@ -294,6 +309,38 @@ describe('anthropic proxy — route', () => {
     expect(execArg.usage).toEqual({ inputTokens: 1000, outputTokens: 500, cacheReadTokens: 200 });
     // opus-4-7: 1000*15 + 500*75 + 200*1.5 per 1M = 0.015 + 0.0375 + 0.0003
     expect(execArg.costUsd).toBeCloseTo(0.0528, 6);
+
+    await app.close();
+    vi.unstubAllGlobals();
+  });
+
+  it('recovers run id from the `_run/<id>` base-URL prefix and strips it upstream', async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response('{"id":"msg_1"}', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const app = Fastify();
+    registerAnthropicProxy(app);
+    await app.ready();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/anthropic/_run/agent-run-7/v1/messages',
+      headers: { 'content-type': 'application/json' },
+      payload: { model: 'claude-opus-4-7', messages: [] },
+    });
+    expect(res.statusCode).toBe(200);
+
+    // Upstream path has the _run/<id> prefix stripped (forwards to real endpoint).
+    expect(fetchMock.mock.calls[0][0]).toBe('https://api.anthropic.com/v1/messages');
+    // The run id lands on the audited actor for per-run budgeting.
+    expect(logToolRequest.mock.calls[0][0].actor).toEqual(
+      expect.objectContaining({ runId: 'agent-run-7' })
+    );
 
     await app.close();
     vi.unstubAllGlobals();

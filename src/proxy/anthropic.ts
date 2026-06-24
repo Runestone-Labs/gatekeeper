@@ -231,6 +231,19 @@ function isMessagesEndpoint(wildcardPath: string, method: string): boolean {
   return method === 'POST' && /^\/?v1\/messages\/?$/.test(wildcardPath);
 }
 
+/**
+ * Strip an optional `_run/<id>/` prefix that carries the run id via the base
+ * URL path. The Claude Agent SDK can't set custom HTTP headers on Anthropic
+ * calls, but it CAN set ANTHROPIC_BASE_URL per run — so a caller routes through
+ * `<gatekeeper>/anthropic/_run/<runId>` and we recover the id here. Returns the
+ * real upstream subpath plus the decoded run id (if present).
+ */
+export function stripRunPrefix(wildcardPath: string): { path: string; runId?: string } {
+  const m = wildcardPath.replace(/^\/+/, '').match(/^_run\/([^/]+)\/?(.*)$/);
+  if (!m) return { path: wildcardPath };
+  return { path: m[2] ?? '', runId: decodeURIComponent(m[1]) };
+}
+
 /** Price usage for a model; null cost when the model isn't in the table. */
 function costFor(model: string | undefined, usage: ModelCallUsage | null): number | null {
   if (!usage || !model) return null;
@@ -246,9 +259,13 @@ export function registerAnthropicProxy(app: FastifyInstance, budgetCheck?: Proxy
     { bodyLimit: MAX_BODY_BYTES },
     async (request: FastifyRequest<{ Params: { '*': string } }>, reply: FastifyReply) => {
       const requestId = randomUUID();
+      // The run id may arrive as a header (TS client / direct HTTP) OR as an
+      // `_run/<id>/` base-URL prefix (the Agent SDK, which can't set headers).
+      const { path: rawPath, runId: pathRunId } = stripRunPrefix(request.params['*'] ?? '');
       const actor = extractActor(request.headers);
+      if (pathRunId && !actor.runId) actor.runId = pathRunId;
       const search = request.url.includes('?') ? request.url.slice(request.url.indexOf('?')) : '';
-      const url = buildUpstreamUrl(request.params['*'] ?? '', search);
+      const url = buildUpstreamUrl(rawPath, search);
       const argsSummary = summarizeAnthropicBody(request.body);
 
       // Per-run / per-actor budget gate at the ACTION boundary: if the run has
@@ -324,7 +341,7 @@ export function registerAnthropicProxy(app: FastifyInstance, budgetCheck?: Proxy
       const riskFlags = upstream.ok ? [] : ['proxy:non_2xx'];
       const reqModel = (request.body as { model?: unknown } | undefined)?.model;
       const model = typeof reqModel === 'string' ? reqModel : undefined;
-      const billable = isMessagesEndpoint(request.params['*'] ?? '', method);
+      const billable = isMessagesEndpoint(rawPath, method);
       const isSSE = (upstream.headers.get('content-type') ?? '').includes('text/event-stream');
 
       // One audit row per call. For billable /v1/messages calls we stamp real
