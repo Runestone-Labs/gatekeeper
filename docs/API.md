@@ -75,7 +75,7 @@ The core endpoint. Every agent tool call comes here. Gatekeeper evaluates policy
 **Request body**
 ```json
 {
-  "requestId": "req-abc-123",
+  "requestId": "550e8400-e29b-41d4-a716-446655440000",
   "actor": {
     "type": "agent",
     "name": "research-bot",
@@ -97,7 +97,7 @@ The core endpoint. Every agent tool call comes here. Gatekeeper evaluates policy
 
 | Field | Required | Notes |
 |---|---|---|
-| `requestId` | yes | UUID or caller-generated unique string. Used for idempotency default. |
+| `requestId` | yes | UUID (schema-validated: `z.string().uuid()`). Used for idempotency default. |
 | `actor` | yes | Must include `type`, `name`, `role`. |
 | `args` | yes | Tool-specific shape; see [POLICY_GUIDE.md](../POLICY_GUIDE.md). Validated by Zod against the tool's schema. |
 | `origin` | no | `user_direct` \| `model_inferred` \| `external_content` \| `background_job`. Used by taint-aware policy rules. |
@@ -110,7 +110,7 @@ The core endpoint. Every agent tool call comes here. Gatekeeper evaluates policy
 ```json
 {
   "decision": "allow",
-  "requestId": "req-abc-123",
+  "requestId": "550e8400-e29b-41d4-a716-446655440000",
   "success": true,
   "result": { "stdout": "file1\nfile2\n", "stderr": "", "exitCode": 0 },
   "error": null,
@@ -131,7 +131,7 @@ The core endpoint. Every agent tool call comes here. Gatekeeper evaluates policy
 ```json
 {
   "decision": "approve",
-  "requestId": "req-abc-123",
+  "requestId": "550e8400-e29b-41d4-a716-446655440000",
   "approvalId": "apr-xyz-456",
   "expiresAt": "2026-04-19T13:00:00.000Z",
   "reasonCode": "POLICY_APPROVAL_REQUIRED",
@@ -149,7 +149,7 @@ The approver clicks the signed URL (sent via the configured approval provider). 
 ```json
 {
   "decision": "deny",
-  "requestId": "req-abc-123",
+  "requestId": "550e8400-e29b-41d4-a716-446655440000",
   "reasonCode": "COMMAND_NOT_ALLOWED",
   "humanExplanation": "Shell command \"rm -rf /\" matches deny pattern.",
   "remediation": "Use an allowed command or update policy.allowed_commands.",

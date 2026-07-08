@@ -178,15 +178,16 @@ bash examples/quickstart.sh
 
 Or test individual decisions:
 ```bash
+# requestId must be a UUID
 # This will be DENIED (dangerous pattern)
 curl -s -X POST http://127.0.0.1:3847/tool/shell.exec \
   -H "Content-Type: application/json" \
-  -d '{"requestId":"test-001","actor":{"type":"agent","name":"test","role":"openclaw"},"args":{"command":"rm -rf /"}}'
+  -d '{"requestId":"'"$(uuidgen)"'","actor":{"type":"agent","name":"test","role":"openclaw"},"args":{"command":"rm -rf /"}}'
 
 # This will be ALLOWED
 curl -s -X POST http://127.0.0.1:3847/tool/http.request \
   -H "Content-Type: application/json" \
-  -d '{"requestId":"test-002","actor":{"type":"agent","name":"test","role":"openclaw"},"args":{"url":"https://httpbin.org/get","method":"GET"}}'
+  -d '{"requestId":"'"$(uuidgen)"'","actor":{"type":"agent","name":"test","role":"openclaw"},"args":{"url":"https://httpbin.org/get","method":"GET"}}'
 ```
 
 To customize policy:

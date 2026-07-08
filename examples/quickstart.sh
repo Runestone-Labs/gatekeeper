@@ -13,6 +13,9 @@ set -euo pipefail
 
 BASE_URL="${GATEKEEPER_URL:-http://127.0.0.1:3847}"
 
+# requestId must be a UUID (schema-validated)
+new_uuid() { uuidgen 2>/dev/null | tr 'A-Z' 'a-z' || python3 -c 'import uuid; print(uuid.uuid4())'; }
+
 echo "=== Runestone Gatekeeper Quickstart ==="
 echo "Target: $BASE_URL"
 echo ""
@@ -26,7 +29,7 @@ echo ""
 curl -s -X POST "$BASE_URL/tool/shell.exec" \
   -H "Content-Type: application/json" \
   -d '{
-    "requestId": "quickstart-deny-001",
+    "requestId": "'"$(new_uuid)"'",
     "actor": {"type": "agent", "name": "quickstart", "role": "openclaw"},
     "args": {"command": "rm -rf /"}
   }' | python3 -m json.tool
@@ -44,7 +47,7 @@ echo ""
 curl -s -X POST "$BASE_URL/tool/http.request" \
   -H "Content-Type: application/json" \
   -d '{
-    "requestId": "quickstart-allow-001",
+    "requestId": "'"$(new_uuid)"'",
     "actor": {"type": "agent", "name": "quickstart", "role": "openclaw"},
     "args": {"url": "https://httpbin.org/get", "method": "GET"}
   }' | python3 -m json.tool
@@ -62,7 +65,7 @@ echo ""
 RESPONSE=$(curl -s -X POST "$BASE_URL/tool/shell.exec" \
   -H "Content-Type: application/json" \
   -d '{
-    "requestId": "quickstart-approve-001",
+    "requestId": "'"$(new_uuid)"'",
     "actor": {"type": "agent", "name": "quickstart", "role": "openclaw"},
     "args": {"command": "echo hello"}
   }')
