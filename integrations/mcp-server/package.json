@@ -1,6 +1,6 @@
 {
   "name": "@runestone-labs/gatekeeper-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP server that runs agent tool calls (shell, files, HTTP, …) through Runestone Gatekeeper — policy enforcement, human approval, and audit for any MCP client",
   "type": "module",
   "bin": {
@@ -14,7 +14,7 @@
     "README.md",
     "LICENSE"
   ],
-  "mcpName": "io.github.runestone-labs/gatekeeper",
+  "mcpName": "io.github.Runestone-Labs/gatekeeper",
   "scripts": {
     "build": "tsc",
     "test": "vitest",

@@ -1,8 +1,8 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.json",
-  "name": "io.github.runestone-labs/gatekeeper",
+  "name": "io.github.Runestone-Labs/gatekeeper",
   "description": "Run MCP tool calls through Runestone Gatekeeper — policy enforcement, human approval, audit.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "repository": {
     "url": "https://github.com/Runestone-Labs/gatekeeper",
     "source": "github",
@@ -13,7 +13,7 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@runestone-labs/gatekeeper-mcp",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "transport": { "type": "stdio" },
       "environmentVariables": [
         {
