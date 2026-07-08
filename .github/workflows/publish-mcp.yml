@@ -13,6 +13,10 @@ name: Publish MCP server
 on:
   release:
     types: [published]
+  # Manual re-run from the default branch — for when a release-triggered run
+  # fails on something fixed after the tag was cut (release events check out
+  # the tag SHA, so a rerun would rebuild the broken code).
+  workflow_dispatch:
 
 jobs:
   publish-mcp:

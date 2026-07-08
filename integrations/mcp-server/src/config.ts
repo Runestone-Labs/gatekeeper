@@ -36,7 +36,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     baseUrl: env.GATEKEEPER_URL || 'http://127.0.0.1:3847',
     role,
     agentName: env.GATEKEEPER_AGENT_NAME || 'mcp-client',
-    runId: env.GATEKEEPER_RUN_ID || undefined,
+    ...(env.GATEKEEPER_RUN_ID ? { runId: env.GATEKEEPER_RUN_ID } : {}),
     origin: 'model_inferred',
     taint: ['mcp_client'],
   };

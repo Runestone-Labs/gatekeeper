@@ -33,7 +33,7 @@ export async function runStdio(): Promise<void> {
     baseUrl: config.baseUrl,
     agentName: config.agentName,
     agentRole: config.role,
-    runId: config.runId,
+    ...(config.runId ? { runId: config.runId } : {}),
   });
   const server = createServer(client, config);
   await server.connect(new StdioServerTransport());
