@@ -233,7 +233,8 @@ async function handleApprovalAction(
       approvalId: approval.id,
       action: 'approved',
       reasonCode: 'APPROVAL_APPROVED',
-      humanExplanation: 'External approval approved; execution delegated to the registering client.',
+      humanExplanation:
+        'External approval approved; execution delegated to the registering client.',
     });
 
     const provider = getApprovalProvider();

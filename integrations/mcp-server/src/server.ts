@@ -21,7 +21,7 @@ export function createServer(client: GatekeeperLike, config: ServerConfig): McpS
       // Our tool list is heterogeneous (different arg shapes), so we erase the
       // per-tool arg type the SDK would infer and validate at the handler. The
       // SDK has already parsed args against inputSchema before calling us.
-      ((args: Record<string, unknown>) => tool.handler(args ?? {})) as never,
+      ((args: Record<string, unknown>) => tool.handler(args ?? {})) as never
     );
   }
   return server;
@@ -38,5 +38,7 @@ export async function runStdio(): Promise<void> {
   const server = createServer(client, config);
   await server.connect(new StdioServerTransport());
   // Log to STDERR only — stdout carries the JSON-RPC stream and must stay clean.
-  console.error(`[gatekeeper-mcp] connected (gatekeeper=${config.baseUrl}, role=${config.role}, agent=${config.agentName})`);
+  console.error(
+    `[gatekeeper-mcp] connected (gatekeeper=${config.baseUrl}, role=${config.role}, agent=${config.agentName})`
+  );
 }

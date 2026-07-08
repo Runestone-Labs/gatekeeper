@@ -44,7 +44,7 @@ async function gatedCall(
   client: GatekeeperLike,
   config: ServerConfig,
   tool: string,
-  args: Record<string, unknown>,
+  args: Record<string, unknown>
 ): Promise<ToolResult> {
   try {
     assertValidToolName(tool);
@@ -133,9 +133,14 @@ export function buildTools(client: GatekeeperLike, config: ServerConfig): ToolDe
       handler: (args) => {
         const tool = args.tool;
         if (typeof tool !== 'string') {
-          return Promise.resolve(errorToToolResult(new Error('`tool` must be a string'), config.baseUrl));
+          return Promise.resolve(
+            errorToToolResult(new Error('`tool` must be a string'), config.baseUrl)
+          );
         }
-        const inner = (args.args && typeof args.args === 'object' ? args.args : {}) as Record<string, unknown>;
+        const inner = (args.args && typeof args.args === 'object' ? args.args : {}) as Record<
+          string,
+          unknown
+        >;
         return gatedCall(client, config, tool, inner);
       },
     },
@@ -143,7 +148,8 @@ export function buildTools(client: GatekeeperLike, config: ServerConfig): ToolDe
       name: 'gatekeeper_health',
       config: {
         title: 'Gatekeeper health',
-        description: 'Check whether the configured Gatekeeper server is reachable and report its version/policy hash.',
+        description:
+          'Check whether the configured Gatekeeper server is reachable and report its version/policy hash.',
         inputSchema: {},
         annotations: { readOnlyHint: true, openWorldHint: true },
       },

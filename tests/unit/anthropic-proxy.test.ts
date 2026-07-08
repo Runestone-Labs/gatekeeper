@@ -125,9 +125,9 @@ describe('anthropic proxy — pure helpers', () => {
 describe('anthropic proxy — usage parsing', () => {
   it('mergeAnthropicUsage coerces string counts and takes the max (cumulative SSE)', () => {
     const acc = { inputTokens: 0, outputTokens: 0 };
-    expect(
-      mergeAnthropicUsage(acc, { input_tokens: '1000', cache_read_input_tokens: 200 })
-    ).toBe(true);
+    expect(mergeAnthropicUsage(acc, { input_tokens: '1000', cache_read_input_tokens: 200 })).toBe(
+      true
+    );
     mergeAnthropicUsage(acc, { output_tokens: 10 });
     mergeAnthropicUsage(acc, { output_tokens: 500 }); // later delta supersedes
     expect(acc).toEqual({ inputTokens: 1000, outputTokens: 500, cacheReadTokens: 200 });
@@ -435,7 +435,11 @@ describe('anthropic proxy — route', () => {
       method: 'POST',
       url: '/anthropic/v1/messages',
       headers: { 'content-type': 'application/json' },
-      payload: { model: 'claude-opus-4-7', stream: true, messages: [{ role: 'user', content: 'hi' }] },
+      payload: {
+        model: 'claude-opus-4-7',
+        stream: true,
+        messages: [{ role: 'user', content: 'hi' }],
+      },
     });
     // Client still receives the full SSE body unmodified.
     expect(res.statusCode).toBe(200);
@@ -445,7 +449,11 @@ describe('anthropic proxy — route', () => {
     await vi.waitFor(() => {
       const exec = logToolExecution.mock.calls.find((c) => c[0].usage);
       expect(exec).toBeTruthy();
-      expect(exec![0].usage).toEqual({ inputTokens: 1000, outputTokens: 500, cacheReadTokens: 200 });
+      expect(exec![0].usage).toEqual({
+        inputTokens: 1000,
+        outputTokens: 500,
+        cacheReadTokens: 200,
+      });
       expect(exec![0].costUsd).toBeCloseTo(0.0528, 6);
     });
 

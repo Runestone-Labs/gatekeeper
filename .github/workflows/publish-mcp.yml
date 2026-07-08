@@ -46,8 +46,16 @@ jobs:
       - name: Test
         run: npm run test:run
 
+      # Idempotent: a re-run (e.g. after fixing the MCP Registry step) must not
+      # die on "cannot publish over existing version".
       - name: Publish to npm
-        run: npm publish --access public --provenance
+        run: |
+          pkg="$(jq -r .name package.json)@$(jq -r .version package.json)"
+          if npm view "$pkg" version >/dev/null 2>&1; then
+            echo "$pkg already on npm — skipping publish"
+          else
+            npm publish --access public --provenance
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

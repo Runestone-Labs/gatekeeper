@@ -60,18 +60,19 @@ describe('pricing — priceCall', () => {
 describe('pricing — refreshLivePricing', () => {
   it('merges LiteLLM rows (per-token → per-1M) onto the active table and caches', async () => {
     const cachePath = join(tmpdir(), `gk-pricing-${process.pid}-${Date.now()}.json`);
-    const fetchImpl = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          'anthropic/claude-future-1': {
-            input_cost_per_token: 0.000004, // → 4 / 1M
-            output_cost_per_token: 0.00002, // → 20 / 1M
-            cache_read_input_token_cost: 0.0000004, // → 0.4 / 1M
-          },
-          'row-without-costs': { foo: 1 },
-        }),
-        { status: 200, headers: { 'content-type': 'application/json' } }
-      )
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            'anthropic/claude-future-1': {
+              input_cost_per_token: 0.000004, // → 4 / 1M
+              output_cost_per_token: 0.00002, // → 20 / 1M
+              cache_read_input_token_cost: 0.0000004, // → 0.4 / 1M
+            },
+            'row-without-costs': { foo: 1 },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
     ) as unknown as typeof fetch;
 
     try {

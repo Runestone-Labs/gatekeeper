@@ -23,7 +23,13 @@ function fakeClient(impl?: (tool: string) => unknown) {
       calls.push({ tool, args, options });
       return impl ? impl(tool) : { decision: 'allow', requestId: 'r', result: { ok: true } };
     },
-    health: async () => ({ version: '1.0', policyHash: 'h', uptime: 1, pendingApprovals: 0, demoMode: false }),
+    health: async () => ({
+      version: '1.0',
+      policyHash: 'h',
+      uptime: 1,
+      pendingApprovals: 0,
+      demoMode: false,
+    }),
   };
   return client;
 }
@@ -86,7 +92,7 @@ describe('gatekeeper_call — anti-traversal', () => {
       const r = await tool(c, 'gatekeeper_call').handler({ tool: badTool, args: {} });
       expect(r.isError).toBe(true);
       expect(c.calls).toHaveLength(0); // never reached the network
-    },
+    }
   );
 
   it('forwards a valid dotted tool name', async () => {
@@ -97,7 +103,10 @@ describe('gatekeeper_call — anti-traversal', () => {
 
   it('handles a non-string tool arg as a fail-closed error', async () => {
     const c = fakeClient();
-    const r = await tool(c, 'gatekeeper_call').handler({ tool: 123 as unknown as string, args: {} });
+    const r = await tool(c, 'gatekeeper_call').handler({
+      tool: 123 as unknown as string,
+      args: {},
+    });
     expect(r.isError).toBe(true);
     expect(c.calls).toHaveLength(0);
   });
@@ -105,7 +114,12 @@ describe('gatekeeper_call — anti-traversal', () => {
 
 describe('decisions + failures are faithfully surfaced', () => {
   it('deny from gatekeeper → isError result', async () => {
-    const c = fakeClient(() => ({ decision: 'deny', requestId: 'r', reasonCode: 'NOPE', humanExplanation: 'no' }));
+    const c = fakeClient(() => ({
+      decision: 'deny',
+      requestId: 'r',
+      reasonCode: 'NOPE',
+      humanExplanation: 'no',
+    }));
     const r = await tool(c, 'http_request').handler({ url: 'https://evil', method: 'GET' });
     expect(r.isError).toBe(true);
     expect(r.content[0]!.text).toContain('NOPE');

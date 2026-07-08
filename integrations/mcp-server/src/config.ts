@@ -29,7 +29,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   if (!role) {
     throw new Error(
       'GATEKEEPER_ROLE is required — it is the role this MCP server presents to Gatekeeper for policy enforcement. ' +
-        'Set it (and GATEKEEPER_URL) in the MCP server environment.',
+        'Set it (and GATEKEEPER_URL) in the MCP server environment.'
     );
   }
   return {

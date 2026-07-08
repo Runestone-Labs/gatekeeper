@@ -74,9 +74,10 @@ describe('decision paths sanitize gatekeeper-supplied text (red-team: deny/appro
       {
         decision: 'deny',
         reasonCode: 'UPSTREAM',
-        humanExplanation: 'upstream http://10.0.0.5:5432 said Authorization: Bearer sk-live-abc123def456 failed',
+        humanExplanation:
+          'upstream http://10.0.0.5:5432 said Authorization: Bearer sk-live-abc123def456 failed',
       },
-      'http://gk.internal:3847',
+      'http://gk.internal:3847'
     );
     expect(r.isError).toBe(true);
     expect(r.content[0]!.text).not.toContain('sk-live-abc123def456');
@@ -86,7 +87,8 @@ describe('decision paths sanitize gatekeeper-supplied text (red-team: deny/appro
   it('redacts a JSON-quoted token and a connection-string password in a deny', () => {
     const r = decisionToToolResult({
       decision: 'deny',
-      humanExplanation: 'config {"token":"abcdef1234567890abcdef"} dsn postgres://admin:s3cretpw@db.internal:5432/x',
+      humanExplanation:
+        'config {"token":"abcdef1234567890abcdef"} dsn postgres://admin:s3cretpw@db.internal:5432/x',
     });
     expect(r.content[0]!.text).not.toContain('abcdef1234567890abcdef');
     expect(r.content[0]!.text).not.toContain('s3cretpw');
@@ -95,14 +97,17 @@ describe('decision paths sanitize gatekeeper-supplied text (red-team: deny/appro
   it('redacts the configured gatekeeper host (case-insensitive) from a deny', () => {
     const r = decisionToToolResult(
       { decision: 'deny', humanExplanation: 'could not reach GK.Internal:3847/tool/x' },
-      'http://gk.internal:3847',
+      'http://gk.internal:3847'
     );
     expect(r.content[0]!.text.toLowerCase()).not.toContain('gk.internal');
   });
 
   it('preserves a UUID approvalId verbatim (must survive sanitization)', () => {
     const id = '550e8400-e29b-41d4-a716-446655440000';
-    const r = decisionToToolResult({ decision: 'approve', approvalId: id, humanExplanation: 'ok' }, 'http://gk:3847');
+    const r = decisionToToolResult(
+      { decision: 'approve', approvalId: id, humanExplanation: 'ok' },
+      'http://gk:3847'
+    );
     expect(r.content[0]!.text).toContain(id);
   });
 });
@@ -110,8 +115,27 @@ describe('decision paths sanitize gatekeeper-supplied text (red-team: deny/appro
 describe('allow branch is self-contained fail-closed (red-team: unguarded JSON.stringify)', () => {
   it.each([
     ['BigInt', { decision: 'allow', result: { n: 10n } }],
-    ['circular', (() => { const o: Record<string, unknown> = { decision: 'allow' }; const c: Record<string, unknown> = {}; c.self = c; o.result = c; return o; })()],
-    ['throwing toJSON', { decision: 'allow', result: { toJSON() { throw new Error('boom'); } } }],
+    [
+      'circular',
+      (() => {
+        const o: Record<string, unknown> = { decision: 'allow' };
+        const c: Record<string, unknown> = {};
+        c.self = c;
+        o.result = c;
+        return o;
+      })(),
+    ],
+    [
+      'throwing toJSON',
+      {
+        decision: 'allow',
+        result: {
+          toJSON() {
+            throw new Error('boom');
+          },
+        },
+      },
+    ],
   ])('returns a fail-closed error (not a throw) for a %s allow payload', (_label, input) => {
     const r = decisionToToolResult(input as unknown);
     expect(r.isError).toBe(true);
@@ -120,7 +144,10 @@ describe('allow branch is self-contained fail-closed (red-team: unguarded JSON.s
 
   it('does NOT sanitize a legitimate allow output (data the caller asked for)', () => {
     // A real http_request result may legitimately contain token-like strings.
-    const r = decisionToToolResult({ decision: 'allow', result: { body: 'the page mentions sk-live-keepme' } });
+    const r = decisionToToolResult({
+      decision: 'allow',
+      result: { body: 'the page mentions sk-live-keepme' },
+    });
     expect(r.isError).toBe(false);
     expect(r.content[0]!.text).toContain('sk-live-keepme');
   });
@@ -130,14 +157,24 @@ describe('sanitize — credential shapes', () => {
   it.each([
     ['JWT', 'tok eyJhbGciOiJIUzI1Ni1.eyJzdWIiOiIxMjM0NQ.SflKxwRJSMeKKF2QT4', 'eyJhbGc'],
     ['AWS key', 'key AKIAIOSFODNN7EXAMPLE here', 'AKIAIOSFODNN7EXAMPLE'],
-    ['github token', 'gho_16C7e42F292c6912E7710c838347Ae178B4a', 'gho_16C7e42F292c6912E7710c838347Ae178B4a'],
-    ['hex blob', 'hash 0123456789abcdef0123456789abcdef0123 end', '0123456789abcdef0123456789abcdef0123'],
+    [
+      'github token',
+      'gho_16C7e42F292c6912E7710c838347Ae178B4a',
+      'gho_16C7e42F292c6912E7710c838347Ae178B4a',
+    ],
+    [
+      'hex blob',
+      'hash 0123456789abcdef0123456789abcdef0123 end',
+      '0123456789abcdef0123456789abcdef0123',
+    ],
   ])('redacts %s', (_label, input, secret) => {
     expect(sanitize(input)).not.toContain(secret);
   });
 
   it('leaves short/benign identifiers and UUIDs alone', () => {
-    expect(sanitize('order 12345 for user-42 id 550e8400-e29b-41d4-a716-446655440000')).toContain('550e8400-e29b-41d4-a716-446655440000');
+    expect(sanitize('order 12345 for user-42 id 550e8400-e29b-41d4-a716-446655440000')).toContain(
+      '550e8400-e29b-41d4-a716-446655440000'
+    );
   });
 });
 
@@ -179,7 +216,10 @@ describe('errorToToolResult — fail-closed + no leakage', () => {
   });
 
   it('redacts the gatekeeper base URL', () => {
-    const r = errorToToolResult(new Error('fetch http://secret-host:3847/tool/x failed'), 'http://secret-host:3847');
+    const r = errorToToolResult(
+      new Error('fetch http://secret-host:3847/tool/x failed'),
+      'http://secret-host:3847'
+    );
     expect(r.content[0]!.text).not.toContain('secret-host');
     expect(r.content[0]!.text).toContain('<gatekeeper>');
   });

@@ -16,9 +16,8 @@ vi.mock('../../src/config.js', () => ({
   },
 }));
 
-const { createApproval, getApprovalStatus, verifyAndConsumeApproval } = await import(
-  '../../src/approvals/store.js'
-);
+const { createApproval, getApprovalStatus, verifyAndConsumeApproval } =
+  await import('../../src/approvals/store.js');
 
 describe('external decision-only approvals (register + status)', () => {
   beforeAll(() => {
@@ -89,7 +88,7 @@ describe('external decision-only approvals (register + status)', () => {
       approval.id,
       'approve',
       url.searchParams.get('sig')!,
-      url.searchParams.get('exp')!,
+      url.searchParams.get('exp')!
     );
     expect(result.approval).not.toBeNull();
     expect(result.approval!.status).toBe('approved');

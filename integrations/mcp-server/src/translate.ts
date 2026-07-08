@@ -44,7 +44,7 @@ export function isValidToolName(name: unknown): name is string {
 export function assertValidToolName(name: unknown): asserts name is string {
   if (!isValidToolName(name)) {
     throw new Error(
-      `invalid gatekeeper tool name ${JSON.stringify(name)} — must match ${TOOL_NAME_RE} (no slashes, no traversal)`,
+      `invalid gatekeeper tool name ${JSON.stringify(name)} — must match ${TOOL_NAME_RE} (no slashes, no traversal)`
     );
   }
 }
@@ -73,7 +73,8 @@ export function sanitize(input: string, baseUrl?: string): string {
     try {
       const u = new URL(baseUrl);
       if (u.host) s = s.replace(new RegExp(escapeRegExp(u.host), 'gi'), '<gatekeeper>');
-      if (u.hostname && u.hostname !== u.host) s = s.replace(new RegExp(escapeRegExp(u.hostname), 'gi'), '<gatekeeper>');
+      if (u.hostname && u.hostname !== u.host)
+        s = s.replace(new RegExp(escapeRegExp(u.hostname), 'gi'), '<gatekeeper>');
     } catch {
       // baseUrl wasn't a parseable URL — the substring scrub above still ran.
     }
@@ -88,14 +89,17 @@ export function sanitize(input: string, baseUrl?: string): string {
       // Labelled secrets, tolerating an intervening quote (JSON: "token":"..").
       .replace(
         /(authorization|api[-_]?key|access[-_]?token|token|secret|password|passwd|pwd)["']?\s*[:=]\s*["']?[^\s"',}]+/gi,
-        '$1=<redacted>',
+        '$1=<redacted>'
       )
       // JWTs.
       .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '<redacted-jwt>')
       // AWS access key ids.
       .replace(/\b(?:AKIA|ASIA)[A-Z0-9]{12,}\b/g, '<redacted>')
       // Known secret prefixes.
-      .replace(/\b(?:sk-[a-z]*-?|re_|pk_(?:live|test)_|gh[oprsu]_|xox[baprs]-)[A-Za-z0-9._-]{6,}/gi, '<redacted>')
+      .replace(
+        /\b(?:sk-[a-z]*-?|re_|pk_(?:live|test)_|gh[oprsu]_|xox[baprs]-)[A-Za-z0-9._-]{6,}/gi,
+        '<redacted>'
+      )
       // Generic solid 32+ alnum blobs (hex hashes, plain tokens). Excludes
       // hyphens/underscores so UUIDs (and thus approvalIds) survive intact.
       .replace(/\b[A-Za-z0-9]{32,}\b/g, '<redacted>')
@@ -109,10 +113,14 @@ export function sanitize(input: string, baseUrl?: string): string {
  */
 export function decisionToToolResult(result: unknown, baseUrl?: string): ToolResult {
   if (!result || typeof result !== 'object') {
-    return text('Gatekeeper returned no/!object response — treating as DENIED (fail-closed).', true);
+    return text(
+      'Gatekeeper returned no/!object response — treating as DENIED (fail-closed).',
+      true
+    );
   }
   const r = result as Partial<GatekeeperResult>;
-  const clean = (v: string | undefined): string | undefined => (v === undefined ? undefined : sanitize(v, baseUrl));
+  const clean = (v: string | undefined): string | undefined =>
+    v === undefined ? undefined : sanitize(v, baseUrl);
 
   switch (r.decision) {
     case 'allow': {
@@ -126,16 +134,24 @@ export function decisionToToolResult(result: unknown, baseUrl?: string): ToolRes
       try {
         body = JSON.stringify(payload, null, 2);
       } catch {
-        return text('Gatekeeper allow result was not serializable — treating as DENIED (fail-closed).', true);
+        return text(
+          'Gatekeeper allow result was not serializable — treating as DENIED (fail-closed).',
+          true
+        );
       }
       if (typeof body !== 'string') {
-        return text('Gatekeeper allow result was empty/non-serializable — treating as DENIED (fail-closed).', true);
+        return text(
+          'Gatekeeper allow result was empty/non-serializable — treating as DENIED (fail-closed).',
+          true
+        );
       }
       return text(body, false);
     }
     case 'deny': {
       const code = clean(r.reasonCode ?? r.denial?.reasonCode) ?? 'DENIED';
-      const why = clean(r.humanExplanation ?? r.denial?.humanExplanation ?? r.error) ?? 'no explanation provided';
+      const why =
+        clean(r.humanExplanation ?? r.denial?.humanExplanation ?? r.error) ??
+        'no explanation provided';
       const fix = clean(r.remediation ?? r.denial?.remediation);
       return text(`DENIED [${code}]: ${why}${fix ? `\nRemediation: ${fix}` : ''}`, true);
     }
@@ -145,21 +161,23 @@ export function decisionToToolResult(result: unknown, baseUrl?: string): ToolRes
       // is sanitized.
       const id = r.approvalId ?? r.approvalRequest?.approvalId ?? '(unknown)';
       const expires = r.expiresAt ?? r.approvalRequest?.expiresAt ?? '(unknown)';
-      const why = clean(r.humanExplanation ?? r.approvalRequest?.humanExplanation) ?? 'human approval required';
+      const why =
+        clean(r.humanExplanation ?? r.approvalRequest?.humanExplanation) ??
+        'human approval required';
       // CRITICAL: isError=true and explicit "did NOT run" so the agent never
       // treats a pending approval as a completed action.
       return text(
         `APPROVAL REQUIRED — this call did NOT execute.\n` +
           `approvalId: ${id}\nexpires: ${expires}\nreason: ${why}\n` +
           `A human must approve it in Gatekeeper; re-issue the call only after approval.`,
-        true,
+        true
       );
     }
     default:
       // Unknown/missing decision: fail closed.
       return text(
         `Gatekeeper returned an unrecognized decision (${JSON.stringify(r.decision)}) — treating as DENIED (fail-closed).`,
-        true,
+        true
       );
   }
 }
@@ -171,5 +189,8 @@ export function decisionToToolResult(result: unknown, baseUrl?: string): ToolRes
  */
 export function errorToToolResult(err: unknown, baseUrl?: string): ToolResult {
   const raw = err instanceof Error ? err.message : String(err);
-  return text(`Gatekeeper call failed — treating as DENIED (fail-closed): ${sanitize(raw, baseUrl)}`, true);
+  return text(
+    `Gatekeeper call failed — treating as DENIED (fail-closed): ${sanitize(raw, baseUrl)}`,
+    true
+  );
 }

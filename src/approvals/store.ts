@@ -268,8 +268,11 @@ export function cleanupExpiredApprovals(): PendingApproval[] {
 /** Public, side-effect-light status snapshot for an external consumer polling
  * a decision (cache-then-disk). Reflects lazy expiry like the approve path. */
 export function getApprovalStatus(
-  id: string,
-): Pick<PendingApproval, 'id' | 'status' | 'createdAt' | 'expiresAt' | 'metadata' | 'external'> | null {
+  id: string
+): Pick<
+  PendingApproval,
+  'id' | 'status' | 'createdAt' | 'expiresAt' | 'metadata' | 'external'
+> | null {
   const approval = loadApproval(id);
   if (!approval) return null;
   if (approval.status === 'pending' && new Date(approval.expiresAt) < new Date()) {
