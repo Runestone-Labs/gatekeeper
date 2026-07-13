@@ -41,3 +41,6 @@ coverage/
 *.cast
 *.mp4
 *.gif
+
+# Autonomous feature-loop build worktrees (runestone-assistants feature-worktree.ts)
+.worktrees/
