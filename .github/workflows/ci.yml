@@ -13,6 +13,23 @@ jobs:
       matrix:
         node-version: [20, 22]
 
+    # Fresh throwaway Postgres per run so tests/integration/db-migrations.test.ts
+    # proves the full migration set applies on an empty database.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: migtest
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test -d migtest"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -39,6 +56,7 @@ jobs:
         run: npm run test:run
         env:
           GATEKEEPER_SECRET: test-secret-at-least-32-characters-long
+          TEST_DATABASE_URL: postgresql://test:test@127.0.0.1:5432/migtest
 
   client:
     runs-on: ubuntu-latest
