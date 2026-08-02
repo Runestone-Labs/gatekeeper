@@ -29,6 +29,13 @@
       "when": 1782192143260,
       "tag": "0003_add_model_cost_metering",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1785650287463,
+      "tag": "0004_add_memory_indexes",
+      "breakpoints": true
     }
   ]
 }

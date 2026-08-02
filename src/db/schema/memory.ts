@@ -7,6 +7,7 @@ import {
   timestamp,
   real,
   primaryKey,
+  index,
 } from 'drizzle-orm/pg-core';
 
 /**
@@ -30,31 +31,55 @@ export type EntityType = (typeof entityTypes)[number];
  * Entities: People, places, things, concepts
  * Dual-stored: SQL table for queries + AGE graph for traversals
  */
-export const entities = pgTable('entities', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  type: varchar('type', { length: 50 }).notNull(),
-  name: varchar('name', { length: 255 }).notNull(),
-  description: text('description'),
-  attributes: jsonb('attributes').default({}),
-  confidence: real('confidence').default(1.0),
-  provenance: varchar('provenance', { length: 255 }),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
-});
+export const entities = pgTable(
+  'entities',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    type: varchar('type', { length: 50 }).notNull(),
+    name: varchar('name', { length: 255 }).notNull(),
+    description: text('description'),
+    attributes: jsonb('attributes').default({}),
+    confidence: real('confidence').default(1.0),
+    provenance: varchar('provenance', { length: 255 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+  },
+  (table) => ({
+    // NOTE: drizzle-kit 0.21 can't express expression indexes or generated
+    // columns, so two more live only in hand-authored migration SQL (the
+    // 0001_add_search_vector precedent): the search_vector tsvector column +
+    // entities_search_idx (0001) and entities_type_lower_name_idx on
+    // (type, lower(btrim(name))) (0004, non-unique until Phase-3 dedup).
+    typeIdx: index('entities_type_idx').on(table.type),
+  })
+);
 
 /**
  * Episodes: Events, decisions, observations
  */
-export const episodes = pgTable('episodes', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  type: varchar('type', { length: 50 }).notNull(),
-  summary: text('summary').notNull(),
-  details: jsonb('details').default({}),
-  importance: real('importance').default(0.5),
-  provenance: varchar('provenance', { length: 255 }),
-  occurredAt: timestamp('occurred_at', { withTimezone: true }).defaultNow(),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
-});
+export const episodes = pgTable(
+  'episodes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    type: varchar('type', { length: 50 }).notNull(),
+    summary: text('summary').notNull(),
+    details: jsonb('details').default({}),
+    importance: real('importance').default(0.5),
+    provenance: varchar('provenance', { length: 255 }),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  },
+  (table) => ({
+    // The occurred_at indexes are created DESC in the migration SQL (window
+    // scans are newest-first); drizzle-kit 0.21 snapshots ignore column order
+    // so the schema/migration diff stays clean. Also hand-authored in 0004:
+    // episodes_details_gin_idx (GIN on details) and the search_vector
+    // generated column + episodes_search_idx (dormant until Phase-4 retrieval).
+    occurredAtIdx: index('episodes_occurred_at_idx').on(table.occurredAt),
+    typeOccurredAtIdx: index('episodes_type_occurred_at_idx').on(table.type, table.occurredAt),
+    provenanceIdx: index('episodes_provenance_idx').on(table.provenance),
+  })
+);
 
 /**
  * Episode-Entity links
