@@ -48,7 +48,7 @@ vi.mock('../../src/providers/index.js', () => ({
 }));
 
 // Import after mocking
-const { writeAuditLog, logToolRequest, logToolExecution, logApprovalConsumed } =
+const { writeAuditLog, logToolRequest, logToolExecution, logApprovalConsumed, countResultRows } =
   await import('../../src/audit/logger.js');
 
 describe('audit logger', () => {
@@ -210,7 +210,66 @@ describe('audit logger', () => {
     });
   });
 
+  describe('countResultRows', () => {
+    it('counts a data array (memory.query list shapes)', () => {
+      expect(
+        countResultRows({ success: true, output: { type: 'entities', data: [{}, {}, {}] } })
+      ).toBe(3);
+      expect(countResultRows({ success: true, output: { type: 'episodes', data: [] } })).toBe(0);
+    });
+
+    it('counts a single-row data field (entity-by-id)', () => {
+      expect(
+        countResultRows({ success: true, output: { type: 'entity', data: { id: 'x' } } })
+      ).toBe(1);
+      expect(countResultRows({ success: true, output: { type: 'entity', data: null } })).toBe(0);
+    });
+
+    it('counts a top-level array output', () => {
+      expect(countResultRows({ success: true, output: [1, 2] })).toBe(2);
+    });
+
+    it('returns null where rows do not apply', () => {
+      expect(
+        countResultRows({ success: true, output: { episode: {}, linkedEntities: 1 } })
+      ).toBeNull();
+      expect(countResultRows({ success: true, output: 'ok' })).toBeNull();
+      expect(countResultRows({ success: true })).toBeNull();
+      expect(countResultRows({ success: false, error: 'boom' })).toBeNull();
+    });
+  });
+
   describe('logToolExecution', () => {
+    it('records durationMs and resultCount on the executed audit row', async () => {
+      logToolExecution({
+        requestId: 'req-enriched',
+        tool: 'memory.query',
+        actor: { type: 'agent', name: 'test-agent', role: 'openclaw' },
+        argsSummary: '{"entityName":"Gatekeeper"}',
+        resultSummary: '{"type":"entities"}',
+        executionReceipt: {
+          startedAt: new Date().toISOString(),
+          completedAt: new Date().toISOString(),
+          durationMs: 12,
+          resultCount: countResultRows({
+            success: true,
+            output: { type: 'entities', data: [{}, {}] },
+          }),
+        },
+        riskFlags: [],
+      });
+
+      await waitForWrite();
+
+      const today = new Date().toISOString().split('T')[0];
+      const logFile = join(TEST_AUDIT_DIR, `${today}.jsonl`);
+      const entry = JSON.parse(readFileSync(logFile, 'utf-8').trim());
+
+      expect(entry.decision).toBe('executed');
+      expect(entry.executionReceipt.durationMs).toBe(12);
+      expect(entry.executionReceipt.resultCount).toBe(2);
+    });
+
     it('logs execution with result', async () => {
       logToolExecution({
         requestId: 'req-456',

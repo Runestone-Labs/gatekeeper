@@ -1,6 +1,37 @@
 import { config } from '../config.js';
-import { AuditEntry, Origin, ContextRef, ExecutionReceipt, ModelCallUsage } from '../types.js';
+import {
+  AuditEntry,
+  Origin,
+  ContextRef,
+  ExecutionReceipt,
+  ModelCallUsage,
+  ToolResult,
+} from '../types.js';
 import { getAuditSink, getPolicySource } from '../providers/index.js';
+
+/**
+ * Rows returned by a tool execution, for the audit row's executionReceipt.
+ * Generic across tools: counts a top-level array output, or an `output.data`
+ * array/row (the shape every memory.query branch returns). Returns null where
+ * "rows" doesn't apply (writes, failures, scalar outputs).
+ */
+export function countResultRows(result: ToolResult): number | null {
+  if (!result.success) {
+    return null;
+  }
+  const output = result.output;
+  if (Array.isArray(output)) {
+    return output.length;
+  }
+  if (output && typeof output === 'object' && 'data' in output) {
+    const data = (output as { data: unknown }).data;
+    if (Array.isArray(data)) {
+      return data.length;
+    }
+    return data == null ? 0 : 1;
+  }
+  return null;
+}
 
 /**
  * Write an audit entry via the configured audit sink.

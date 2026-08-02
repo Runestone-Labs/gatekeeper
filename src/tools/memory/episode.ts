@@ -14,31 +14,36 @@ export async function executeMemoryEpisode(args: MemoryEpisodeArgs): Promise<Too
   const db = getDb();
 
   try {
-    // Create episode
-    const inserted = await db
-      .insert(episodes)
-      .values({
-        type: args.type,
-        summary: args.summary,
-        details: args.details || {},
-        importance: args.importance ?? 0.5,
-        occurredAt: args.occurredAt ? new Date(args.occurredAt) : new Date(),
-        provenance: args.provenance,
-      })
-      .returning();
+    // Episode + links commit atomically: a failed link (e.g. bad entityId FK)
+    // must not leave an orphaned episode row behind.
+    const episode = await db.transaction(async (tx) => {
+      const inserted = await tx
+        .insert(episodes)
+        .values({
+          type: args.type,
+          summary: args.summary,
+          details: args.details || {},
+          importance: args.importance ?? 0.5,
+          occurredAt: args.occurredAt ? new Date(args.occurredAt) : new Date(),
+          provenance: args.provenance,
+        })
+        .returning();
 
-    const episode = inserted[0];
+      const created = inserted[0];
 
-    // Link episode to entities
-    if (args.entityIds && args.entityIds.length > 0) {
-      const links = args.entityIds.map((entityId) => ({
-        episodeId: episode.id,
-        entityId,
-        role: args.entityRoles?.[entityId] || null,
-      }));
+      // Link episode to entities
+      if (args.entityIds && args.entityIds.length > 0) {
+        const links = args.entityIds.map((entityId) => ({
+          episodeId: created.id,
+          entityId,
+          role: args.entityRoles?.[entityId] || null,
+        }));
 
-      await db.insert(episodeEntities).values(links);
-    }
+        await tx.insert(episodeEntities).values(links);
+      }
+
+      return created;
+    });
 
     return {
       success: true,
