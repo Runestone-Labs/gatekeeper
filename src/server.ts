@@ -11,7 +11,12 @@ import {
   cleanupExpiredApprovals,
 } from './approvals/store.js';
 import { registerApprovalRoutes } from './approvals/routes.js';
-import { logToolRequest, logToolExecution, logApprovalConsumed } from './audit/logger.js';
+import {
+  logToolRequest,
+  logToolExecution,
+  logApprovalConsumed,
+  countResultRows,
+} from './audit/logger.js';
 import { redactSecrets, canonicalize, computeHash } from './utils.js';
 import { getApprovalProvider, getAuditSink, getPolicySource } from './providers/index.js';
 import { initDb, closeDb, checkDbHealth, isDbAvailable } from './db/client.js';
@@ -483,7 +488,9 @@ app.post<{ Params: { toolName: string } }>('/tool/:toolName', async (request, re
 
       const resultSummary = redactSecrets(result);
 
-      // Log the execution
+      // Log the execution. The audit copy of the receipt also carries
+      // resultCount (rows returned) so retrieval efficacy is measurable from
+      // audit_logs; the client-facing receipt below stays unchanged.
       logToolExecution({
         requestId,
         tool: toolName,
@@ -492,7 +499,7 @@ app.post<{ Params: { toolName: string } }>('/tool/:toolName', async (request, re
         argsHash,
         resultSummary,
         riskFlags: evaluation.riskFlags,
-        executionReceipt,
+        executionReceipt: { ...executionReceipt, resultCount: countResultRows(result) },
       });
 
       const responseBody = {

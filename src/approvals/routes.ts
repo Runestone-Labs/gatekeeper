@@ -6,7 +6,7 @@ import {
   getApprovalStatus,
 } from './store.js';
 import { executeTool } from '../tools/index.js';
-import { logApprovalConsumed, logToolExecution } from '../audit/logger.js';
+import { logApprovalConsumed, logToolExecution, countResultRows } from '../audit/logger.js';
 import { redactSecrets, canonicalize, computeHash, generateId } from '../utils.js';
 import { getApprovalProvider, getPolicySource } from '../providers/index.js';
 import { config } from '../config.js';
@@ -270,7 +270,8 @@ async function handleApprovalAction(
 
   const resultSummary = redactSecrets(result);
 
-  // Log the execution
+  // Log the execution. The audit copy of the receipt also carries resultCount
+  // (rows returned); the client-facing receipt below stays unchanged.
   logToolExecution({
     requestId: approval.requestId,
     tool: approval.toolName,
@@ -279,7 +280,7 @@ async function handleApprovalAction(
     argsHash,
     resultSummary,
     riskFlags: [],
-    executionReceipt,
+    executionReceipt: { ...executionReceipt, resultCount: countResultRows(result) },
     approvalId: approval.id,
   });
 

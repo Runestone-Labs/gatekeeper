@@ -333,6 +333,12 @@ export interface ExecutionReceipt {
   completedAt: string;
   durationMs: number;
   resourcesUsed?: Record<string, unknown>;
+  /**
+   * Rows returned by the tool (e.g. memory.query matches); null where the
+   * notion doesn't apply. Audit-row only — never sent in tool responses —
+   * so retrieval efficacy is measurable from audit_logs alone.
+   */
+  resultCount?: number | null;
 }
 
 // v1: Approval request details
