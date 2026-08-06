@@ -1,0 +1,47 @@
+{
+  "": {
+    "swift-dependencies": "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/.build/arm64-apple-macosx/debug/GatekeeperBar.build/master.swiftdeps"
+  },
+  "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/Sources/GatekeeperBar/AppState.swift": {
+    "dependencies": "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/.build/arm64-apple-macosx/debug/GatekeeperBar.build/AppState.d",
+    "object": "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/.build/arm64-apple-macosx/debug/GatekeeperBar.build/AppState.swift.o",
+    "swiftmodule": "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/.build/arm64-apple-macosx/debug/GatekeeperBar.build/AppState~partial.swiftmodule",
+    "swift-dependencies": "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/.build/arm64-apple-macosx/debug/GatekeeperBar.build/AppState.swiftdeps"
+  },
+  "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/Sources/GatekeeperBar/GatekeeperBarApp.swift": {
+    "dependencies": "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/.build/arm64-apple-macosx/debug/GatekeeperBar.build/GatekeeperBarApp.d",
+    "object": "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/.build/arm64-apple-macosx/debug/GatekeeperBar.build/GatekeeperBarApp.swift.o",
+    "swiftmodule": "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/.build/arm64-apple-macosx/debug/GatekeeperBar.build/GatekeeperBarApp~partial.swiftmodule",
+    "swift-dependencies": "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/.build/arm64-apple-macosx/debug/GatekeeperBar.build/GatekeeperBarApp.swiftdeps"
+  },
+  "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/Sources/GatekeeperBar/GatekeeperClient.swift": {
+    "dependencies": "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/.build/arm64-apple-macosx/debug/GatekeeperBar.build/GatekeeperClient.d",
+    "object": "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/.build/arm64-apple-macosx/debug/GatekeeperBar.build/GatekeeperClient.swift.o",
+    "swiftmodule": "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/.build/arm64-apple-macosx/debug/GatekeeperBar.build/GatekeeperClient~partial.swiftmodule",
+    "swift-dependencies": "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/.build/arm64-apple-macosx/debug/GatekeeperBar.build/GatekeeperClient.swiftdeps"
+  },
+  "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/Sources/GatekeeperBar/KeychainStore.swift": {
+    "dependencies": "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/.build/arm64-apple-macosx/debug/GatekeeperBar.build/KeychainStore.d",
+    "object": "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/.build/arm64-apple-macosx/debug/GatekeeperBar.build/KeychainStore.swift.o",
+    "swiftmodule": "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/.build/arm64-apple-macosx/debug/GatekeeperBar.build/KeychainStore~partial.swiftmodule",
+    "swift-dependencies": "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/.build/arm64-apple-macosx/debug/GatekeeperBar.build/KeychainStore.swiftdeps"
+  },
+  "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/Sources/GatekeeperBar/Models.swift": {
+    "dependencies": "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/.build/arm64-apple-macosx/debug/GatekeeperBar.build/Models.d",
+    "object": "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/.build/arm64-apple-macosx/debug/GatekeeperBar.build/Models.swift.o",
+    "swiftmodule": "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/.build/arm64-apple-macosx/debug/GatekeeperBar.build/Models~partial.swiftmodule",
+    "swift-dependencies": "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/.build/arm64-apple-macosx/debug/GatekeeperBar.build/Models.swiftdeps"
+  },
+  "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/Sources/GatekeeperBar/NotificationManager.swift": {
+    "dependencies": "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/.build/arm64-apple-macosx/debug/GatekeeperBar.build/NotificationManager.d",
+    "object": "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/.build/arm64-apple-macosx/debug/GatekeeperBar.build/NotificationManager.swift.o",
+    "swiftmodule": "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/.build/arm64-apple-macosx/debug/GatekeeperBar.build/NotificationManager~partial.swiftmodule",
+    "swift-dependencies": "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/.build/arm64-apple-macosx/debug/GatekeeperBar.build/NotificationManager.swiftdeps"
+  },
+  "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/Sources/GatekeeperBar/Views/MenuContentView.swift": {
+    "dependencies": "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/.build/arm64-apple-macosx/debug/GatekeeperBar.build/MenuContentView.d",
+    "object": "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/.build/arm64-apple-macosx/debug/GatekeeperBar.build/MenuContentView.swift.o",
+    "swiftmodule": "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/.build/arm64-apple-macosx/debug/GatekeeperBar.build/MenuContentView~partial.swiftmodule",
+    "swift-dependencies": "/Users/evanvandegriff/Documents/Projects.nosync/runestone-gatekeeper/apps/macos/GatekeeperBar/.build/arm64-apple-macosx/debug/GatekeeperBar.build/MenuContentView.swiftdeps"
+  }
+}
