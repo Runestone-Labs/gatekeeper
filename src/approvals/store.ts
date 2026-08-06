@@ -265,6 +265,51 @@ export function cleanupExpiredApprovals(): PendingApproval[] {
   return expired;
 }
 
+/**
+ * List all currently-pending approvals with fresh signed action URLs.
+ * Applies lazy expiry (same semantics as getApprovalStatus) so callers never
+ * see a hold that is already past its window.
+ *
+ * SECURITY: The returned approveUrl/denyUrl are live credentials for the
+ * decision. Only expose this listing behind secret auth — an unauthenticated
+ * listing would let a gated agent on the same host approve itself.
+ */
+export function listPendingApprovals(): Array<{
+  approval: PendingApproval;
+  approveUrl: string;
+  denyUrl: string;
+}> {
+  ensureApprovalsDir();
+  const now = new Date();
+  const pending: Array<{ approval: PendingApproval; approveUrl: string; denyUrl: string }> = [];
+
+  for (const file of readdirSync(config.approvalsDir)) {
+    if (!file.endsWith('.json')) continue;
+    const approval = loadApproval(file.replace('.json', ''));
+    if (!approval || approval.status !== 'pending') continue;
+
+    if (new Date(approval.expiresAt) < now) {
+      approval.status = 'expired';
+      saveApprovalToDisk(approval);
+      continue;
+    }
+
+    pending.push({
+      approval,
+      approveUrl: generateSignedUrl(approval, 'approve'),
+      denyUrl: generateSignedUrl(approval, 'deny'),
+    });
+  }
+
+  // Oldest first: the hold closest to expiry is the one to surface on top.
+  pending.sort(
+    (a, b) =>
+      new Date(a.approval.expiresAt).getTime() - new Date(b.approval.expiresAt).getTime()
+  );
+
+  return pending;
+}
+
 /** Public, side-effect-light status snapshot for an external consumer polling
  * a decision (cache-then-disk). Reflects lazy expiry like the approve path. */
 export function getApprovalStatus(

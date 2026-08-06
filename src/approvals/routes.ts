@@ -4,6 +4,7 @@ import {
   consumeApprovalDirect,
   createApproval,
   getApprovalStatus,
+  listPendingApprovals,
 } from './store.js';
 import { executeTool } from '../tools/index.js';
 import { logApprovalConsumed, logToolExecution, countResultRows } from '../audit/logger.js';
@@ -128,6 +129,31 @@ export function registerApprovalRoutes(app: FastifyInstance): void {
       });
     }
   );
+
+  // GET /approvals/pending — list open holds with signed action URLs
+  // (secret-auth). This is the inbox surface for interactive approvers (the
+  // menu-bar app). Args are redacted the same way the audit log redacts them;
+  // the raw args never leave the server via this listing.
+  app.get('/approvals/pending', async (request: FastifyRequest, reply: FastifyReply) => {
+    if (!hasSecretAuth(request)) {
+      reply.status(401).send({ error: 'Unauthorized' });
+      return;
+    }
+    const pending = listPendingApprovals().map(({ approval, approveUrl, denyUrl }) => ({
+      id: approval.id,
+      toolName: approval.toolName,
+      actor: approval.actor,
+      argsSummary: redactSecrets(approval.args, 500),
+      requestId: approval.requestId,
+      createdAt: approval.createdAt,
+      expiresAt: approval.expiresAt,
+      metadata: approval.metadata,
+      external: approval.external ?? false,
+      approveUrl,
+      denyUrl,
+    }));
+    reply.send({ pending, count: pending.length });
+  });
 
   // GET /approvals/:id/status — poll a decision (secret-auth). Lets a consumer
   // reconcile after a restart and learn approve/deny/expire out of band.

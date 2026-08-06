@@ -27,7 +27,11 @@ export const config = {
 
   // Security
   secret: process.env.GATEKEEPER_SECRET || '',
-  approvalExpiryMs: 60 * 60 * 1000, // 1 hour
+  // Approval TTL. The 1h default suits console/Slack flows where the approver is
+  // near-synchronous; interactive setups (menu-bar app) should raise it — a TTL
+  // shorter than the human's response time silently converts every hold into an
+  // expiry (see 2026-05-29: all four production holds died this way).
+  approvalExpiryMs: parseInt(process.env.APPROVAL_EXPIRY_MS || String(60 * 60 * 1000), 10),
 
   // Paths
   policyPath: process.env.POLICY_PATH || join(projectRoot, 'policy.yaml'),

@@ -136,6 +136,44 @@ Your test can then call the approveUrl to complete the flow.
 
 ---
 
+## Listing Pending Approvals
+
+Interactive approval surfaces (the macOS menu-bar app, custom dashboards) poll
+the inbox endpoint:
+
+```bash
+curl -s http://127.0.0.1:3847/approvals/pending \
+  -H "Authorization: Bearer $GATEKEEPER_SECRET"
+```
+
+Response:
+
+```json
+{
+  "count": 1,
+  "pending": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "toolName": "shell.exec",
+      "actor": {"type": "agent", "name": "my-agent", "role": "openclaw"},
+      "argsSummary": "{\"command\":\"deploy --prod\"}",
+      "requestId": "req-001",
+      "createdAt": "2026-08-06T10:00:00.000Z",
+      "expiresAt": "2026-08-07T10:00:00.000Z",
+      "metadata": null,
+      "external": false,
+      "approveUrl": "http://127.0.0.1:3847/approve/550e…?sig=…&exp=…",
+      "denyUrl": "http://127.0.0.1:3847/deny/550e…?sig=…&exp=…"
+    }
+  ]
+}
+```
+
+Holds are sorted oldest-expiry-first, args are redacted with the same rules as
+the audit log, and overdue holds are transitioned to `expired` (never shown).
+See [The Pending Listing Is Privileged](#the-pending-listing-is-privileged)
+before exposing this to anything.
+
 ## Approval Flow Examples
 
 ### Example 1: Agent Requests Shell Command
@@ -291,6 +329,22 @@ Without expiry:
 - Old approvals could be used indefinitely
 - Context may have changed since the request
 - Forgotten approvals remain active forever
+
+Pick the TTL to match your real approval flow, though: if your approver is a
+human who checks a menu-bar app or inbox a few times a day, the 1-hour default
+guarantees misses. `APPROVAL_EXPIRY_MS=86400000` (24h) is a saner interactive
+default; keep short TTLs for flows with a synchronous approver.
+
+### The Pending Listing Is Privileged
+
+`GET /approvals/pending` returns live signed approve/deny URLs and requires
+secret auth (`Authorization: Bearer <GATEKEEPER_SECRET>` or
+`X-Gatekeeper-Secret`). This is deliberate: an unauthenticated listing would
+hand the decision credentials to any process on the host — including the gated
+agent itself, which could then approve its own held actions. Give the secret
+only to surfaces a human controls (the menu-bar app, your dashboard), and note
+that any process already holding the secret (e.g. a client that registers
+external approvals) is inside this trust boundary too.
 
 ---
 
