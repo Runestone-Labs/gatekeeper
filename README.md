@@ -31,6 +31,10 @@ The Gatekeeper intercepts all tool requests and:
 
 All decisions are logged to an append-only audit trail (jsonl or Postgres). An aggregation endpoint (`/usage`) exposes call counts — and real cost/token sums — by actor × tool × day. A budget endpoint (`/budget`) surfaces current spend vs cap per configured rule.
 
+Gatekeeper only controls actions that are actually routed through it. Native or bypass routes remain outside its boundary, so verify each client's real routing configuration before describing a runtime as protected.
+
+The local OSS product is available now. A possible $49/month team Cloud layer is in demand validation, not generally available, and no payment is collected today. [Describe your workload and willingness to pay](https://gatekeeper.runestonelabs.io/cloud-beta?utm_source=github&utm_medium=readme&utm_campaign=cloud_beta_validation).
+
 ## Sensitive Boundary Protection
 
 Coding agents fail in subtle ways. They start with a safe task, then escalate
@@ -582,16 +586,11 @@ See the full [client README](integrations/typescript-client/README.md) for all a
 
 Gatekeeper is designed to be agent-agnostic. Any agent that can route tool calls over HTTP can integrate with Gatekeeper. See [INTEGRATING_AGENTS.md](INTEGRATING_AGENTS.md) for the integration pattern.
 
-## Enterprise Control Plane
+## Planned Team Cloud
 
-**Runestone Control Plane** provides:
+Runestone is validating an optional hosted layer for shared approvals, policy versions, redacted evidence, drift alerts, and weekly reports. The proposed Team plan is $49/month for five instances and five members.
 
-- **Managed Policies**: Version-controlled policy configuration with templates
-- **Searchable Audit**: Full-text search across all audit logs with compliance exports
-- **Web-based Approvals**: Modern approval UI with mobile notifications
-- **Team Workflows**: Approval routing, escalation, and delegation
-
-Contact: enterprise@runestone.dev
+Cloud development remains frozen until at least five qualified external teams and three explicit $49/month commitments cross the public demand gate. [Join demand validation](https://gatekeeper.runestonelabs.io/cloud-beta?utm_source=github&utm_medium=readme&utm_campaign=cloud_beta_validation).
 
 ## Security Decisions
 
