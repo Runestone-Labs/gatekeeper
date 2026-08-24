@@ -2,13 +2,14 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { config, validateConfig } from './config.js';
 import { evaluateTool } from './policy/evaluate.js';
-import { enforceBudget, computeBudgetStatus } from './budget/enforcer.js';
+import { checkBudget, computeBudgetStatus } from './budget/enforcer.js';
 import { executeTool, validateToolArgs, toolExists } from './tools/index.js';
 import { ToolRequestSchema, initToolSchemas } from './tools/schemas.js';
 import {
   createApproval,
   countPendingApprovals,
   cleanupExpiredApprovals,
+  listPendingApprovals,
 } from './approvals/store.js';
 import { registerApprovalRoutes } from './approvals/routes.js';
 import {
@@ -77,6 +78,13 @@ app.get('/health', async () => {
     providers: {
       approval: approvalProvider.name,
       policy: policySource.name,
+      audit: getAuditSink().name,
+    },
+    cloud: {
+      connected: Boolean(
+        config.runestoneApiUrl && config.runestoneApiKey && config.runestoneInstanceId
+      ),
+      localAuditAuthoritative: true,
     },
     database: {
       available: isDbAvailable(),
@@ -312,9 +320,14 @@ app.post<{ Params: { toolName: string } }>('/tool/:toolName', async (request, re
   // and only for actors with a matching budgets[] rule. A BUDGET_EXCEEDED
   // denial from here overrides an allow from the base policy.
   if (evaluation.decision !== 'deny') {
-    const budgetDenial = await enforceBudget(toolName, actor, policy, getAuditSink());
-    if (budgetDenial) {
-      evaluation = budgetDenial;
+    const budget = await checkBudget(toolName, actor, policy, getAuditSink());
+    if (budget.denial) {
+      evaluation = budget.denial;
+    } else if (budget.riskFlags.length > 0) {
+      evaluation = {
+        ...evaluation,
+        riskFlags: [...new Set([...evaluation.riskFlags, ...budget.riskFlags])],
+      };
     }
   }
 
@@ -431,6 +444,9 @@ app.post<{ Params: { toolName: string } }>('/tool/:toolName', async (request, re
         context,
         requestId,
         idempotencyKey,
+        policyHash: policySource.getHash(),
+        reasonCode: evaluation.reasonCode,
+        riskCategory: evaluation.category,
       });
 
       // Send notification via approval provider (don't block on failure)
@@ -529,7 +545,7 @@ registerApprovalRoutes(app);
 // Wire the budget gate so per-run/per-actor caps apply to model calls too —
 // no-op unless a budgets[] rule matches the actor (observe-first default).
 registerAnthropicProxy(app, (actor) =>
-  enforceBudget('anthropic.proxy', actor, policy, getAuditSink())
+  checkBudget('anthropic.proxy', actor, policy, getAuditSink())
 );
 
 // When the proxy is enabled, keep the model-pricing table fresh so proxied
@@ -584,6 +600,16 @@ try {
   await app.listen({ port: config.port, host: config.host });
   console.log(`Gatekeeper running on ${config.baseUrl}`);
   console.log(`Health check: ${config.baseUrl}/health`);
+  if (approvalProvider.name === 'runestone-cloud') {
+    for (const pending of listPendingApprovals()) {
+      void approvalProvider
+        .requestApproval(pending.approval, {
+          approveUrl: pending.approveUrl,
+          denyUrl: pending.denyUrl,
+        })
+        .catch((error) => console.error('Failed to resume Cloud approval:', error));
+    }
+  }
 } catch (err) {
   console.error('Failed to start server:', err);
   process.exit(1);

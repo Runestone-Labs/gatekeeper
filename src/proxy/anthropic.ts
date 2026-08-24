@@ -59,7 +59,9 @@ type Actor = { type: 'agent'; name: string; role: string; runId?: string };
  * server so the proxy stays decoupled from policy/sink wiring. Absent ⇒ no
  * enforcement (observe-first default).
  */
-export type ProxyBudgetCheck = (actor: Actor) => Promise<PolicyEvaluation | null>;
+export type ProxyBudgetCheck = (
+  actor: Actor
+) => Promise<{ denial: PolicyEvaluation | null; riskFlags: string[] }>;
 
 /** Build the upstream URL from the wildcard subpath + querystring. Host is fixed. */
 export function buildUpstreamUrl(wildcardPath: string, search: string): string {
@@ -271,8 +273,11 @@ export function registerAnthropicProxy(app: FastifyInstance, budgetCheck?: Proxy
       // Per-run / per-actor budget gate at the ACTION boundary: if the run has
       // already burned its cap, deny BEFORE the (costly) model call. No-op
       // unless a budget rule matches the actor (observe-first default).
+      let budgetRiskFlags: string[] = [];
       if (budgetCheck) {
-        const denial = await budgetCheck(actor);
+        const budget = await budgetCheck(actor);
+        const denial = budget.denial;
+        budgetRiskFlags = budget.riskFlags;
         if (denial) {
           logToolRequest({
             requestId,
@@ -303,7 +308,7 @@ export function registerAnthropicProxy(app: FastifyInstance, budgetCheck?: Proxy
         decision: 'allow',
         actor,
         argsSummary,
-        riskFlags: [],
+        riskFlags: budgetRiskFlags,
       });
 
       const apiKey = config.anthropicApiKey || headerStr(request.headers['x-api-key']) || '';
@@ -338,7 +343,7 @@ export function registerAnthropicProxy(app: FastifyInstance, budgetCheck?: Proxy
       }
       clearTimeout(timer); // headers received; do not abort mid-stream
 
-      const riskFlags = upstream.ok ? [] : ['proxy:non_2xx'];
+      const riskFlags = [...budgetRiskFlags, ...(upstream.ok ? [] : ['proxy:non_2xx'])];
       const reqModel = (request.body as { model?: unknown } | undefined)?.model;
       const model = typeof reqModel === 'string' ? reqModel : undefined;
       const billable = isMessagesEndpoint(rawPath, method);

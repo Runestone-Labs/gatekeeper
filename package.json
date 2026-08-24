@@ -1,6 +1,6 @@
 {
   "name": "runestone-gatekeeper",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Policy-based gatekeeper for AI agent tool execution",
   "author": "Runestone Labs",
   "license": "Apache-2.0",
@@ -53,7 +53,9 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "cli:build": "npm --prefix integrations/cli run build",
+    "cli:test": "npm --prefix integrations/cli test"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.2",

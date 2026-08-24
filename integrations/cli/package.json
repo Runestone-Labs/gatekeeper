@@ -1,0 +1,45 @@
+{
+  "name": "@runestone-labs/gatekeeper",
+  "version": "0.7.0",
+  "description": "Self-serve setup, Cloud connection, diagnostics, and receipt verification for Runestone Gatekeeper",
+  "type": "module",
+  "bin": {
+    "gatekeeper": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc && node scripts/chmod-bin.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "typescript": "^5.7.3",
+    "vitest": "^4.0.18"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "keywords": ["ai", "agent", "gatekeeper", "policy", "approvals", "audit", "mcp"],
+  "author": "Runestone Labs",
+  "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "homepage": "https://gatekeeper.runestonelabs.io",
+  "bugs": {
+    "url": "https://github.com/Runestone-Labs/gatekeeper/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Runestone-Labs/gatekeeper.git",
+    "directory": "integrations/cli"
+  }
+}

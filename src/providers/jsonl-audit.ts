@@ -1,8 +1,94 @@
-import { appendFileSync, mkdirSync, existsSync, readdirSync, readFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  closeSync,
+  mkdirSync,
+  existsSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  unlinkSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { config } from '../config.js';
 import { AuditEntry, ModelCallUsage, UsageFilter, UsageRow, UsageSummary } from '../types.js';
 import { AuditSink } from './types.js';
+import { canonicalize, computeHash } from '../utils.js';
+
+export interface AuditVerificationResult {
+  valid: boolean;
+  chainedEntries: number;
+  legacyEntries: number;
+  lastSequence: number;
+  lastEntryHash: string | null;
+  errors: string[];
+}
+
+function listAuditFiles(auditDir: string): string[] {
+  if (!existsSync(auditDir)) return [];
+  return readdirSync(auditDir)
+    .filter((file) => file.endsWith('.jsonl'))
+    .sort();
+}
+
+function entryHash(entry: AuditEntry): string {
+  const { entryHash: _entryHash, ...hashable } = entry;
+  // Hash the exact JSON representation that is persisted. JSON.stringify
+  // omits undefined optional fields, so remove them before canonicalization.
+  const persisted = JSON.parse(JSON.stringify(hashable)) as Omit<AuditEntry, 'entryHash'>;
+  return `sha256:${computeHash(canonicalize(persisted))}`;
+}
+
+export function verifyAuditDirectory(auditDir = config.auditDir): AuditVerificationResult {
+  const errors: string[] = [];
+  let expectedSequence = 1;
+  let previousHash: string | null = null;
+  let chainedEntries = 0;
+  let legacyEntries = 0;
+
+  for (const file of listAuditFiles(auditDir)) {
+    const lines = readFileSync(join(auditDir, file), 'utf-8').split('\n');
+    for (let index = 0; index < lines.length; index++) {
+      if (!lines[index].trim()) continue;
+      let entry: AuditEntry;
+      try {
+        entry = JSON.parse(lines[index]) as AuditEntry;
+      } catch {
+        errors.push(`${file}:${index + 1}: invalid JSON`);
+        continue;
+      }
+
+      if (entry.sequence === undefined || entry.entryHash === undefined) {
+        legacyEntries++;
+        continue;
+      }
+      chainedEntries++;
+      if (entry.sequence !== expectedSequence) {
+        errors.push(
+          `${file}:${index + 1}: expected sequence ${expectedSequence}, got ${entry.sequence}`
+        );
+      }
+      if ((entry.previousEntryHash ?? null) !== previousHash) {
+        errors.push(`${file}:${index + 1}: previous-entry hash mismatch`);
+      }
+      const calculated = entryHash(entry);
+      if (entry.entryHash !== calculated) {
+        errors.push(`${file}:${index + 1}: entry hash mismatch`);
+      }
+      expectedSequence = entry.sequence + 1;
+      previousHash = entry.entryHash;
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    chainedEntries,
+    legacyEntries,
+    lastSequence: expectedSequence - 1,
+    lastEntryHash: previousHash,
+    errors,
+  };
+}
 
 /** Total billable tokens for a model call (input + output + cache tiers), or null. */
 export function sumUsageTokens(usage: ModelCallUsage | undefined): number | null {
@@ -32,15 +118,22 @@ export class JsonlAuditSink implements AuditSink {
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
     const logFile = join(config.auditDir, `${today}.jsonl`);
 
-    // Append to log file (JSONL format)
-    const line = JSON.stringify(entry) + '\n';
-
+    const releaseLock = acquireChainLock(config.auditDir);
     try {
+      const verified = verifyAuditDirectory(config.auditDir);
+      if (!verified.valid) {
+        throw new Error(`Refusing to extend invalid audit chain: ${verified.errors[0]}`);
+      }
+      entry.sequence = verified.lastSequence + 1;
+      entry.previousEntryHash = verified.lastEntryHash;
+      entry.entryHash = entryHash(entry);
+
+      // Append while holding a cross-process lock so multiple daemon/test
+      // workers cannot independently assign the same sequence number.
+      const line = JSON.stringify(entry) + '\n';
       appendFileSync(logFile, line, 'utf-8');
-    } catch (err) {
-      // Log to stderr if we can't write to the audit log
-      console.error('Failed to write audit log:', err);
-      console.error('Entry:', entry);
+    } finally {
+      releaseLock();
     }
   }
 
@@ -67,7 +160,7 @@ export class JsonlAuditSink implements AuditSink {
 
     const sinceDate = filter.since ? new Date(filter.since) : null;
     const untilDate = filter.until ? new Date(filter.until) : null;
-    const files = readdirSync(config.auditDir).filter((f) => f.endsWith('.jsonl'));
+    const files = listAuditFiles(config.auditDir);
 
     // Key shape: `${actorName}\x01${actorRole}\x01${tool}\x01${day}`
     const buckets = new Map<
@@ -168,5 +261,35 @@ export class JsonlAuditSink implements AuditSink {
       filter,
       generatedAt: new Date().toISOString(),
     };
+  }
+}
+
+function acquireChainLock(auditDir: string): () => void {
+  const path = join(auditDir, '.chain.lock');
+  const deadline = Date.now() + 5000;
+  while (true) {
+    try {
+      const descriptor = openSync(path, 'wx', 0o600);
+      return () => {
+        closeSync(descriptor);
+        try {
+          unlinkSync(path);
+        } catch {
+          // Another recovery path may already have removed a stale lock.
+        }
+      };
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+      try {
+        if (Date.now() - statSync(path).mtimeMs > 30_000) {
+          unlinkSync(path);
+          continue;
+        }
+      } catch {
+        continue;
+      }
+      if (Date.now() >= deadline) throw new Error('Timed out acquiring audit chain lock');
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
+    }
   }
 }

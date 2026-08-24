@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { existsSync, mkdirSync, rmSync, readdirSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 
 const TEST_DIR = '/tmp/gatekeeper-idempotency-test';
 
@@ -41,6 +42,10 @@ describe('idempotency store', () => {
 
     const files = readdirSync(TEST_DIR);
     expect(files.length).toBeGreaterThan(0);
+    if (process.platform !== 'win32') {
+      expect(statSync(TEST_DIR).mode & 0o777).toBe(0o700);
+      expect(statSync(join(TEST_DIR, files[0])).mode & 0o777).toBe(0o600);
+    }
   });
 
   it('completes records with response', () => {

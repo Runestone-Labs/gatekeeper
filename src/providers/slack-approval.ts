@@ -118,15 +118,16 @@ export class SlackApprovalProvider implements ApprovalProvider {
 
   async notifyResult(
     approval: PendingApproval,
-    action: 'approved' | 'denied',
+    action: 'approved' | 'denied' | 'expired' | 'executed' | 'failed',
     result?: string
   ): Promise<void> {
     if (!config.slackWebhookUrl) {
       return;
     }
 
-    const emoji = action === 'approved' ? ':white_check_mark:' : ':x:';
-    const color = action === 'approved' ? '#36a64f' : '#dc3545';
+    const successful = action === 'approved' || action === 'executed';
+    const emoji = successful ? ':white_check_mark:' : ':x:';
+    const color = successful ? '#36a64f' : '#dc3545';
 
     const message: {
       attachments: Array<{

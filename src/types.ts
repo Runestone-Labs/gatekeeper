@@ -113,6 +113,11 @@ export interface PendingApproval {
   idempotencyKey?: string;
   createdAt: string;
   expiresAt: string;
+  /** Policy version that produced the hold; bound into the Cloud action digest. */
+  policyHash?: string;
+  /** Stable evaluation metadata safe to expose to an approver. */
+  reasonCode?: string;
+  riskCategory?: string;
   /**
    * Opaque application metadata supplied by the registering client (e.g. a
    * decision-inbox card, the serialized action reference, channel list).
@@ -170,6 +175,12 @@ export interface AuditEntry {
   model?: string;
   usage?: ModelCallUsage;
   costUsd?: number | null;
+
+  // Optional tamper-evident local receipt chain. JSONL assigns these fields
+  // before the entry is offered to any secondary Cloud sink.
+  sequence?: number;
+  previousEntryHash?: string | null;
+  entryHash?: string;
 }
 
 // Usage / metering aggregation

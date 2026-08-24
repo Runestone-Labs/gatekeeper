@@ -29,7 +29,39 @@ The Gatekeeper intercepts all tool requests and:
 - **Rejects when a USD / token / call budget is exceeded** (optional) — per **actor** (a rolling guardrail) or per **run** (`scope: run`, keyed on `runId`: caps a single agentic run at the action boundary, where recursive burn compounds)
 - **Optionally proxies Anthropic model calls** — route inference through the gatekeeper so every `/v1/messages` call is audited, the API key stays centralized, and real per-token **cost** is metered onto the audit row and into budgets (off by default; see [docs/API.md](docs/API.md#all-anthropic))
 
-All decisions are logged to an append-only audit trail (jsonl or Postgres). An aggregation endpoint (`/usage`) exposes call counts — and real cost/token sums — by actor × tool × day. A budget endpoint (`/budget`) surfaces current spend vs cap per configured rule.
+All decisions are logged to an append-only audit trail (JSONL or Postgres). JSONL receipts include a sequence, previous-entry hash, and entry hash for independent tamper/gap verification. An aggregation endpoint (`/usage`) exposes call counts — and real cost/token sums — by actor × tool × day. A budget endpoint (`/budget`) surfaces current spend vs cap per configured rule.
+
+Gatekeeper only controls actions that are actually routed through it. It does not infer coverage from installation. Verify the client's actual routing configuration before describing a runtime as protected.
+
+## Setup CLI
+
+The `gatekeeper` CLI previews every client configuration change, creates timestamped backups before applying one, and can restore the last patch:
+
+```bash
+npm install --global @runestone-labs/gatekeeper
+gatekeeper init --client claude-code
+gatekeeper doctor
+gatekeeper verify ./data/audit
+```
+
+Supported setup targets are `claude-code`, `openclaw`, and `mcp`. Fresh Claude Code patches set `GATEKEEPER_FAIL_CLOSED=1`. Existing fail-open hooks remain usable, but `doctor` reports them as a protection failure with the exact migration command.
+
+The Cloud connection protocol is implemented for dogfooding, but the hosted team product is not
+generally available. Cloud development is paused while Runestone validates whether teams have a
+consequential workload and will pay $49/month for shared approvals, policy, and redacted evidence.
+Join demand validation here:
+
+https://gatekeeper.runestonelabs.io/cloud-beta?utm_source=github&utm_medium=readme&utm_campaign=cloud_beta_validation
+
+The experimental connection flow uses browser device authorization and a scoped instance token stored locally with mode `0600`:
+
+```bash
+gatekeeper connect
+gatekeeper disconnect
+```
+
+Do not expect the public Cloud endpoint to be available during demand validation. Disconnect revokes
+Cloud access without turning off local OSS enforcement. See [RUNESTONE_CLOUD.md](RUNESTONE_CLOUD.md).
 
 ## Sensitive Boundary Protection
 
@@ -102,8 +134,11 @@ npm install -g @runestone-labs/gatekeeper-claude-code
 }
 ```
 
-Fail-open by default if the Gatekeeper server is down; set
-`GATEKEEPER_FAIL_CLOSED=1` to flip to fail-closed. See
+The legacy hook remains fail-open by default if the Gatekeeper server is down. The setup
+CLI sets `GATEKEEPER_FAIL_CLOSED=1` for new managed installations and reports existing configurations
+that do not. Approval-required Bash, Write, and WebFetch calls are registered
+as exact idempotent holds and executed locally once after approval. Edit is
+policy-checked but is never reduced to a destructive whole-file write. See
 [`integrations/claude-code/README.md`](integrations/claude-code/README.md)
 for the full configuration reference.
 
@@ -215,8 +250,8 @@ export GATEKEEPER_SECRET="your-secret-key-at-least-32-chars-long"
 
 # Provider selection (optional)
 export APPROVAL_PROVIDER=local   # local | slack | runestone (default: local)
-export AUDIT_SINK=jsonl          # jsonl | runestone (default: jsonl)
-export POLICY_SOURCE=yaml        # yaml | runestone (default: yaml)
+export AUDIT_SINK=jsonl          # jsonl | postgres (Cloud is an additive secondary)
+export POLICY_SOURCE=yaml        # yaml | runestone (Cloud retains last-known-good locally)
 
 # Optional: Slack webhook for approval notifications (when using slack provider)
 export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/..."
@@ -582,16 +617,19 @@ See the full [client README](integrations/typescript-client/README.md) for all a
 
 Gatekeeper is designed to be agent-agnostic. Any agent that can route tool calls over HTTP can integrate with Gatekeeper. See [INTEGRATING_AGENTS.md](INTEGRATING_AGENTS.md) for the integration pattern.
 
-## Enterprise Control Plane
+## Planned self-serve Cloud
 
-**Runestone Control Plane** provides:
+OSS Local remains free and authoritative. Cloud Free adds one instance, one
+approver, a hosted inbox, health/budget status, and seven-day redacted history.
+Cloud Team is planned at $49/month or $490/year for five instances and five members, with
+90-day history, shared policy versions, exports, drift alerts, and weekly
+reports. Cloud is not generally available and no payment is collected today.
+[Join demand validation](https://gatekeeper.runestonelabs.io/cloud-beta?utm_source=github&utm_medium=readme&utm_campaign=cloud_beta_validation).
 
-- **Managed Policies**: Version-controlled policy configuration with templates
-- **Searchable Audit**: Full-text search across all audit logs with compliance exports
-- **Web-based Approvals**: Modern approval UI with mobile notifications
-- **Team Workflows**: Approval routing, escalation, and delegation
-
-Contact: enterprise@runestone.dev
+Cloud never receives raw prompts, results, file contents, HTTP bodies or
+headers, environment values, or arbitrary custom arguments. See
+[RUNESTONE_CLOUD.md](RUNESTONE_CLOUD.md) for the exact versioned schemas and
+failure behavior.
 
 ## Security Decisions
 

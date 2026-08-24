@@ -1,5 +1,6 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -18,6 +19,25 @@ function loadVersion(): string {
 export type ApprovalProviderType = 'local' | 'slack' | 'runestone';
 export type AuditSinkType = 'jsonl' | 'postgres' | 'runestone';
 export type PolicySourceType = 'yaml' | 'runestone';
+
+type CloudFileConfig = {
+  apiUrl?: string;
+  instanceId?: string;
+  instanceToken?: string;
+};
+
+function loadCloudFileConfig(): CloudFileConfig {
+  const file =
+    process.env.GATEKEEPER_CLOUD_CONFIG || join(homedir(), '.config', 'gatekeeper', 'cloud.json');
+  if (!existsSync(file)) return {};
+  try {
+    return JSON.parse(readFileSync(file, 'utf-8')) as CloudFileConfig;
+  } catch {
+    return {};
+  }
+}
+
+const cloudFileConfig = loadCloudFileConfig();
 
 export const config = {
   // Server
@@ -49,8 +69,22 @@ export const config = {
   slackWebhookUrl: process.env.SLACK_WEBHOOK_URL || '',
 
   // Runestone Cloud
-  runestoneApiUrl: process.env.RUNESTONE_API_URL || '',
-  runestoneApiKey: process.env.RUNESTONE_API_KEY || '',
+  runestoneApiUrl: process.env.RUNESTONE_API_URL || cloudFileConfig.apiUrl || '',
+  runestoneApiKey: process.env.RUNESTONE_API_KEY || cloudFileConfig.instanceToken || '',
+  runestoneInstanceId: process.env.RUNESTONE_INSTANCE_ID || cloudFileConfig.instanceId || '',
+  cloudPollIntervalMs: Math.max(500, parseInt(process.env.CLOUD_POLL_INTERVAL_MS || '2000', 10)),
+  cloudRequestTimeoutMs: Math.max(
+    1000,
+    parseInt(process.env.CLOUD_REQUEST_TIMEOUT_MS || '15000', 10)
+  ),
+  cloudSpoolMaxBytes: Math.max(
+    1024 * 1024,
+    parseInt(process.env.CLOUD_SPOOL_MAX_BYTES || String(25 * 1024 * 1024), 10)
+  ),
+  cloudCustomSummaryFields: (process.env.CLOUD_CUSTOM_SUMMARY_FIELDS || '')
+    .split(',')
+    .map((field) => field.trim())
+    .filter(Boolean),
 
   // Anthropic model-call proxy — lets agents (e.g. the OpenClaw Agent SDK engine)
   // route /v1/messages through gatekeeper for policy + audit instead of calling
@@ -61,7 +95,10 @@ export const config = {
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
 
   // Provider selection
-  approvalProvider: (process.env.APPROVAL_PROVIDER || 'local') as ApprovalProviderType,
+  approvalProvider: (process.env.APPROVAL_PROVIDER ||
+    (cloudFileConfig.instanceToken && cloudFileConfig.instanceId
+      ? 'runestone'
+      : 'local')) as ApprovalProviderType,
   auditSink: (process.env.AUDIT_SINK || 'jsonl') as AuditSinkType,
   policySource: (process.env.POLICY_SOURCE || 'yaml') as PolicySourceType,
 
@@ -83,6 +120,18 @@ export const config = {
   },
   get idempotencyDir() {
     return join(this.dataDir, 'idempotency');
+  },
+  get cloudDir() {
+    return join(this.dataDir, 'cloud');
+  },
+  get cloudSpoolPath() {
+    return join(this.cloudDir, 'events-spool.jsonl');
+  },
+  get cloudPolicyCachePath() {
+    return join(this.cloudDir, 'policy-last-known-good.json');
+  },
+  get cloudChainStatePath() {
+    return join(this.cloudDir, 'events-chain-state.json');
   },
 };
 

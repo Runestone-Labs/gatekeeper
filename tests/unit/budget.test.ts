@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  checkBudget,
   enforceBudget,
   matchBudgetRule,
   matchBudgetRules,
@@ -220,6 +221,21 @@ describe('budget enforceBudget', () => {
     const sink = stubSink(makeSummary([{ tool: 'http.request', callCount: 50 }]));
     const result = await enforceBudget('http.request', baseActor, policyWithBudget, sink);
     expect(result).toBeNull();
+  });
+
+  it('emits an 80% warning without blocking the action', async () => {
+    const sink = stubSink(makeSummary([{ tool: 'http.request', callCount: 79 }]));
+    const result = await checkBudget('http.request', baseActor, policyWithBudget, sink);
+    expect(result.denial).toBeNull();
+    expect(result.riskFlags).toContain('budget_threshold:80');
+    expect(result.riskFlags).not.toContain('budget_threshold:100');
+  });
+
+  it('emits a 100% warning at the exact ceiling before hard overage', async () => {
+    const sink = stubSink(makeSummary([{ tool: 'http.request', callCount: 99 }]));
+    const result = await checkBudget('http.request', baseActor, policyWithBudget, sink);
+    expect(result.denial).toBeNull();
+    expect(result.riskFlags).toContain('budget_threshold:100');
   });
 
   it('denies with BUDGET_EXCEEDED when projected exceeds', async () => {

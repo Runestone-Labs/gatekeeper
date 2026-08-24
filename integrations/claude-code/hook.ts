@@ -8,9 +8,11 @@
  *   1. Reads the hook envelope from stdin (Claude Code sends JSON).
  *   2. Maps the Claude Code tool to a Gatekeeper tool + args.
  *   3. Calls Gatekeeper's `POST /tool/:toolName` with `dryRun: true` so
- *      Gatekeeper evaluates policy without trying to execute (Claude Code
- *      does the actual execution itself, downstream of the hook).
- *   4. Translates the Gatekeeper decision into Claude Code's hook output
+ *      Gatekeeper evaluates policy without trying to execute.
+ *   4. If approval is required for an exactly representable action, registers
+ *      the real held action with an idempotency key. Gatekeeper executes it
+ *      exactly once after the local or Cloud decision is applied.
+ *   5. Translates the Gatekeeper decision into Claude Code's hook output
  *      shape (`{ decision: "block", reason: "..." }` to block; exit 0 to
  *      allow).
  *
@@ -29,7 +31,7 @@
  *   GATEKEEPER_DEBUG          "1" to log decisions to stderr
  */
 
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 interface ClaudeCodeHookInput {
   session_id?: string;
@@ -46,11 +48,16 @@ interface GatekeeperEvaluationResponse {
   remediation?: string;
   riskFlags?: string[];
   dryRun?: boolean;
+  approvalId?: string;
+  expiresAt?: string;
+  message?: string;
 }
 
 interface MappedRequest {
   tool: string;
   args: Record<string, unknown>;
+  /** False when Claude's action cannot safely be reproduced by Gatekeeper. */
+  executableOnApproval?: boolean;
 }
 
 /**
@@ -112,6 +119,9 @@ export function mapClaudeCodeTool(
           path: toolInput.file_path,
           content: toolInput.new_string ?? '',
         },
+        // `files.write` would replace the whole file with `new_string`; never
+        // register that as an executable approval for a Claude Edit action.
+        executableOnApproval: false,
       };
 
     case 'WebFetch':
@@ -123,6 +133,84 @@ export function mapClaudeCodeTool(
     // Read, Glob, Grep, NotebookEdit, MCP tools, etc. → not gated in v0.1.
     default:
       return null;
+  }
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`);
+    return `{${entries.join(',')}}`;
+  }
+  const encoded = JSON.stringify(value);
+  return encoded === undefined ? 'null' : encoded;
+}
+
+function approvalIdempotencyKey(
+  sessionId: string | undefined,
+  toolName: string,
+  args: Record<string, unknown>
+): string {
+  const digest = createHash('sha256')
+    .update(stableJson({ sessionId: sessionId ?? null, toolName, args }))
+    .digest('hex');
+  return `claude-code:${digest}`;
+}
+
+function makeRequestBody(
+  args: Record<string, unknown>,
+  opts: {
+    agentName: string;
+    agentRole: string;
+    sessionId?: string;
+    runId?: string;
+  },
+  dryRun: boolean,
+  idempotencyKey?: string
+): Record<string, unknown> {
+  const runId = opts.runId || opts.sessionId;
+  return {
+    requestId: randomUUID(),
+    actor: {
+      type: 'agent' as const,
+      name: opts.agentName,
+      role: opts.agentRole,
+      ...(runId ? { runId } : {}),
+    },
+    args,
+    context: opts.sessionId ? { conversationId: opts.sessionId } : undefined,
+    origin: 'model_inferred' as const,
+    dryRun,
+    ...(idempotencyKey ? { idempotencyKey } : {}),
+  };
+}
+
+async function postToolRequest(
+  baseUrl: string,
+  toolName: string,
+  body: Record<string, unknown>,
+  timeoutMs: number
+): Promise<GatekeeperEvaluationResponse> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${baseUrl.replace(/\/$/, '')}/tool/${encodeURIComponent(toolName)}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    const response = (await res.json()) as GatekeeperEvaluationResponse;
+    if (!res.ok) {
+      throw new Error(
+        `Gatekeeper returned HTTP ${res.status}${response.humanExplanation ? `: ${response.humanExplanation}` : ''}`
+      );
+    }
+    return response;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -150,39 +238,33 @@ export async function evaluate(
     runId?: string;
   }
 ): Promise<GatekeeperEvaluationResponse> {
-  // Correlate all of a session's calls under one run so per-run budgets apply.
-  // Falls back to the Claude Code session id when no explicit run id is set.
-  const runId = opts.runId || opts.sessionId;
-  const body = {
-    requestId: randomUUID(),
-    actor: {
-      type: 'agent' as const,
-      name: opts.agentName,
-      role: opts.agentRole,
-      ...(runId ? { runId } : {}),
-    },
-    args,
-    context: opts.sessionId ? { conversationId: opts.sessionId } : undefined,
-    origin: 'model_inferred' as const,
-    dryRun: true,
-  };
+  return postToolRequest(baseUrl, toolName, makeRequestBody(args, opts, true), opts.timeoutMs);
+}
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), opts.timeoutMs);
-  try {
-    const res = await fetch(`${baseUrl.replace(/\/$/, '')}/tool/${encodeURIComponent(toolName)}`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-    if (!res.ok) {
-      throw new Error(`Gatekeeper returned HTTP ${res.status}`);
-    }
-    return (await res.json()) as GatekeeperEvaluationResponse;
-  } finally {
-    clearTimeout(timer);
+/** Register the real, executable held action after a dry-run approval decision. */
+export async function registerHeldAction(
+  baseUrl: string,
+  toolName: string,
+  args: Record<string, unknown>,
+  opts: {
+    agentName: string;
+    agentRole: string;
+    timeoutMs: number;
+    sessionId?: string;
+    runId?: string;
   }
+): Promise<GatekeeperEvaluationResponse> {
+  const idempotencyKey = approvalIdempotencyKey(opts.sessionId, toolName, args);
+  const response = await postToolRequest(
+    baseUrl,
+    toolName,
+    makeRequestBody(args, opts, false, idempotencyKey),
+    opts.timeoutMs
+  );
+  if (response.decision !== 'approve' || !response.approvalId || !response.expiresAt) {
+    throw new Error('Gatekeeper did not return a bound approval hold');
+  }
+  return response;
 }
 
 /**
@@ -192,7 +274,8 @@ export async function evaluate(
  */
 export function buildHookResponse(
   evaluation: GatekeeperEvaluationResponse,
-  mapped: MappedRequest
+  mapped: MappedRequest,
+  heldAction?: GatekeeperEvaluationResponse
 ): { exit: number; stdout?: string } {
   if (evaluation.decision === 'allow') {
     return { exit: 0 };
@@ -205,9 +288,19 @@ export function buildHookResponse(
   if (evaluation.humanExplanation) lines.push(evaluation.humanExplanation);
   if (evaluation.remediation) lines.push(evaluation.remediation);
   if (evaluation.reasonCode) lines.push(`(reasonCode: ${evaluation.reasonCode})`);
-  lines.push(
-    `Tool: ${mapped.tool}. To proceed, the user should run this manually outside Claude Code, or update Gatekeeper's sensitive_boundaries policy.`
-  );
+  if (heldAction?.approvalId) {
+    lines.push(
+      `Tool: ${mapped.tool}. Approval ${heldAction.approvalId} is pending until ${heldAction.expiresAt}. Gatekeeper will execute the exact held action once if approved; do not retry it in Claude Code.`
+    );
+  } else if (evaluation.decision === 'approve' && mapped.executableOnApproval === false) {
+    lines.push(
+      `Tool: ${mapped.tool}. This Claude Code action cannot be reproduced safely by Gatekeeper, so no executable hold was created. Apply it manually or change policy.`
+    );
+  } else {
+    lines.push(
+      `Tool: ${mapped.tool}. To proceed, run this manually outside Claude Code or update Gatekeeper policy.`
+    );
+  }
 
   const reason = lines.join('\n');
 
@@ -281,7 +374,29 @@ export async function run(stdin: string): Promise<{ exit: number; stdout?: strin
     );
   }
 
-  return buildHookResponse(evaluation, mapped);
+  let heldAction: GatekeeperEvaluationResponse | undefined;
+  if (evaluation.decision === 'approve' && mapped.executableOnApproval !== false) {
+    try {
+      heldAction = await registerHeldAction(cfg.baseUrl, mapped.tool, mapped.args, {
+        agentName: cfg.agentName,
+        agentRole: cfg.agentRole,
+        timeoutMs: cfg.timeoutMs,
+        sessionId: input.session_id,
+        runId: cfg.runId,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return {
+        exit: 0,
+        stdout: JSON.stringify({
+          decision: 'block',
+          reason: `Gatekeeper required approval but could not create the executable hold (${msg}). The action was not executed.`,
+        }),
+      };
+    }
+  }
+
+  return buildHookResponse(evaluation, mapped, heldAction);
 }
 
 // CLI entry point — only run when executed directly, not when imported by tests.

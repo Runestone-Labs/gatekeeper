@@ -21,7 +21,9 @@ vi.mock('../../src/config.js', () => ({
 const { createApproval, listPendingApprovals } = await import('../../src/approvals/store.js');
 const { registerApprovalRoutes } = await import('../../src/approvals/routes.js');
 
-function makeApproval(overrides: { toolName?: string; ttlMs?: number; args?: Record<string, unknown> } = {}) {
+function makeApproval(
+  overrides: { toolName?: string; ttlMs?: number; args?: Record<string, unknown> } = {}
+) {
   return createApproval({
     toolName: overrides.toolName ?? 'shell.exec',
     args: overrides.args ?? { command: 'echo hi' },

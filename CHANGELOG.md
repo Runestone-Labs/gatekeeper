@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-24
+
+### Added
+
+- First npm release of `@runestone-labs/gatekeeper`, the self-serve
+  `gatekeeper` CLI, with preview-first reversible integration
+  patching, device connection, integrity/coverage diagnostics, receipt
+  verification, and Cloud revocation.
+- Outbound-only Cloud approvals bound to the exact local action digest, with
+  retry, expiry, replay/conflict rejection, restart recovery, and local
+  exactly-once execution.
+- Strict versioned privacy schemas and purpose-built shell/file/HTTP summaries;
+  raw prompts, results, contents, bodies, headers, environment values, URLs
+  with queries, and unapproved custom arguments are excluded.
+- Tamper-evident local JSONL receipts plus a separate redacted Cloud chain and
+  local-chain continuity receipts.
+- Pre-call 80%/100% USD, token, and call-budget audit markers.
+
+### Changed
+
+- Connected Cloud audit is always a buffered secondary sink; JSONL or Postgres
+  remains locally authoritative.
+- Claude Code approval-required Bash, Write, and WebFetch calls become
+  idempotent executable holds. Edit remains policy checked without unsafe
+  whole-file execution. Published as `@runestone-labs/gatekeeper-claude-code`
+  0.5.0.
+
 ## [0.6.0] - 2026-06-23
 
 ### Added
@@ -277,7 +304,9 @@ Initial public release.
 - SSRF protection blocks access to private IP ranges
 - Secrets are redacted from audit logs
 
-[Unreleased]: https://github.com/Runestone-Labs/gatekeeper/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/Runestone-Labs/gatekeeper/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/Runestone-Labs/gatekeeper/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/Runestone-Labs/gatekeeper/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Runestone-Labs/gatekeeper/compare/v0.3.2...v0.5.0
 [0.3.2]: https://github.com/Runestone-Labs/gatekeeper/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/Runestone-Labs/gatekeeper/compare/v0.3.0...v0.3.1

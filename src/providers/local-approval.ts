@@ -31,10 +31,10 @@ export class LocalApprovalProvider implements ApprovalProvider {
 
   async notifyResult(
     approval: PendingApproval,
-    action: 'approved' | 'denied',
+    action: 'approved' | 'denied' | 'expired' | 'executed' | 'failed',
     result?: string
   ): Promise<void> {
-    const emoji = action === 'approved' ? '✓' : '✗';
+    const emoji = action === 'approved' || action === 'executed' ? '✓' : '✗';
     console.log(`\n${emoji} ${approval.toolName} was ${action}`);
     if (result) {
       console.log(`Result: ${result.slice(0, 200)}...`);

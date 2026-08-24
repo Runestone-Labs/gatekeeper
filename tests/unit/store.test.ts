@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdirSync, rmSync, existsSync, readdirSync } from 'node:fs';
+import { mkdirSync, rmSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 
 // Mock config before importing store
 vi.mock('../../src/config.js', () => ({
@@ -91,6 +92,10 @@ describe('approval store', () => {
 
       const files = readdirSync(TEST_DIR);
       expect(files).toContain(`${approval.id}.json`);
+      if (process.platform !== 'win32') {
+        expect(statSync(TEST_DIR).mode & 0o777).toBe(0o700);
+        expect(statSync(join(TEST_DIR, `${approval.id}.json`)).mode & 0o777).toBe(0o600);
+      }
     });
 
     it('canonicalizes args for consistent signing', () => {

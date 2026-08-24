@@ -21,7 +21,7 @@ export interface ApprovalProvider {
    */
   notifyResult?(
     approval: PendingApproval,
-    action: 'approved' | 'denied',
+    action: 'approved' | 'denied' | 'expired' | 'executed' | 'failed',
     result?: string
   ): Promise<void>;
 }

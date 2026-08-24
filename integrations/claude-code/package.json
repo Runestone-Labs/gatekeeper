@@ -1,6 +1,6 @@
 {
   "name": "@runestone-labs/gatekeeper-claude-code",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Claude Code PreToolUse hook that gates Bash / Write / Edit / WebFetch through Runestone Gatekeeper's Sensitive Boundary policy.",
   "type": "module",
   "main": "dist/hook.js",
@@ -21,9 +21,10 @@
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node scripts/chmod-bin.mjs",
     "test": "vitest --run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build && npm test"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
@@ -47,13 +48,16 @@
   ],
   "author": "Runestone Labs",
   "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
   "homepage": "https://github.com/Runestone-Labs/gatekeeper",
   "bugs": {
     "url": "https://github.com/Runestone-Labs/gatekeeper/issues"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Runestone-Labs/gatekeeper.git",
+    "url": "git+https://github.com/Runestone-Labs/gatekeeper.git",
     "directory": "integrations/claude-code"
   }
 }

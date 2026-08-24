@@ -11,6 +11,7 @@ import { logApprovalConsumed, logToolExecution, countResultRows } from '../audit
 import { redactSecrets, canonicalize, computeHash, generateId } from '../utils.js';
 import { getApprovalProvider, getPolicySource } from '../providers/index.js';
 import { config } from '../config.js';
+import { completeIdempotencyRecord } from '../idempotency/store.js';
 import type { Actor } from '../types.js';
 
 interface ApprovalParams {
@@ -118,6 +119,7 @@ export function registerApprovalRoutes(app: FastifyInstance): void {
         metadata: body.metadata,
         external: body.external ?? true,
         ttlMs: body.ttlMs,
+        policyHash: getPolicySource().getHash(),
       });
       reply.send({
         id: approval.id,
@@ -236,11 +238,19 @@ async function handleApprovalAction(
       await provider.notifyResult(approval, 'denied');
     }
 
-    reply.send({
+    const responseBody = {
+      decision: 'deny',
       success: true,
       message: `Tool execution denied`,
       approvalId: approval.id,
-    });
+    };
+    if (approval.idempotencyKey) {
+      completeIdempotencyRecord(approval.idempotencyKey, {
+        statusCode: 403,
+        body: responseBody,
+      });
+    }
+    reply.send(responseBody);
     return;
   }
 
@@ -258,15 +268,10 @@ async function handleApprovalAction(
       argsHash,
       approvalId: approval.id,
       action: 'approved',
-      reasonCode: 'APPROVAL_APPROVED',
+      reasonCode: 'EXTERNAL_APPROVAL_APPROVED',
       humanExplanation:
         'External approval approved; execution delegated to the registering client.',
     });
-
-    const provider = getApprovalProvider();
-    if (provider.notifyResult) {
-      await provider.notifyResult(approval, 'approved');
-    }
 
     reply.send({ success: true, approvalId: approval.id, external: true });
     return;
@@ -319,8 +324,10 @@ async function handleApprovalAction(
     approvalId: approval.id,
     action: 'approved',
     resultSummary,
-    reasonCode: 'APPROVAL_APPROVED',
-    humanExplanation: 'The approval request was approved and executed.',
+    reasonCode: result.success ? 'APPROVAL_APPROVED' : 'APPROVAL_EXECUTION_FAILED',
+    humanExplanation: result.success
+      ? 'The approval request was approved and executed.'
+      : 'The approval request was approved, but local execution failed.',
   });
 
   // Notify via approval provider
@@ -333,13 +340,21 @@ async function handleApprovalAction(
     );
   }
 
-  reply.send({
+  const responseBody = {
+    decision: 'allow',
     success: result.success,
     approvalId: approval.id,
     result: result.output,
     error: result.error,
     executionReceipt,
-  });
+  };
+  if (approval.idempotencyKey) {
+    completeIdempotencyRecord(approval.idempotencyKey, {
+      statusCode: 200,
+      body: responseBody,
+    });
+  }
+  reply.send(responseBody);
 }
 
 function hasSecretAuth(request: FastifyRequest): boolean {

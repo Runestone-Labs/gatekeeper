@@ -44,6 +44,12 @@ export interface BudgetStatus {
   byTool: Array<{ tool: string; callCount: number; costUsd: number }>;
 }
 
+export interface BudgetCheckResult {
+  denial: PolicyEvaluation | null;
+  /** Non-blocking markers copied into the audit/Cloud event stream. */
+  riskFlags: string[];
+}
+
 /** Turn a window kind into an ISO-8601 start boundary. */
 export function windowStartISO(window: BudgetWindow, now: Date = new Date()): string {
   const ms = now.getTime();
@@ -170,12 +176,31 @@ export async function enforceBudget(
   policy: Policy,
   sink: AuditSink
 ): Promise<PolicyEvaluation | null> {
-  if (!actor) return null;
+  return (await checkBudget(toolName, actor, policy, sink)).denial;
+}
+
+/**
+ * Evaluate budget enforcement and warning thresholds in one aggregation pass.
+ * 80% and 100% markers are observable even for soft budgets; hard budgets also
+ * return a denial once a call would exceed a configured ceiling.
+ */
+export async function checkBudget(
+  toolName: string,
+  actor: Actor | undefined,
+  policy: Policy,
+  sink: AuditSink
+): Promise<BudgetCheckResult> {
+  if (!actor) return { denial: null, riskFlags: [] };
+  const riskFlags = new Set<string>();
   for (const rule of matchBudgetRules(actor, policy)) {
-    const denial = await evaluateRule(rule, toolName, actor, policy, sink);
-    if (denial) return denial;
+    const result = await evaluateRule(rule, toolName, actor, policy, sink);
+    for (const flag of result.riskFlags) riskFlags.add(flag);
+    if (result.denial) {
+      result.denial.riskFlags = [...new Set([...result.denial.riskFlags, ...riskFlags])];
+      return { denial: result.denial, riskFlags: [...riskFlags] };
+    }
   }
-  return null;
+  return { denial: null, riskFlags: [...riskFlags] };
 }
 
 /** Evaluate one budget rule against a pending call. */
@@ -185,39 +210,56 @@ async function evaluateRule(
   actor: Actor,
   policy: Policy,
   sink: AuditSink
-): Promise<PolicyEvaluation | null> {
+): Promise<BudgetCheckResult> {
   const isRun = rule.scope === 'run';
   // A run-scoped rule needs a run to key on; without one there's nothing to cap.
-  if (isRun && !actor.runId) return null;
+  if (isRun && !actor.runId) return { denial: null, riskFlags: [] };
 
   const thisCallCost = policy.tools[toolName]?.cost_usd ?? 0;
   // Actor scope: zero-cost tools bypass entirely (preserves v1 behavior).
   // Run scope: still enforce token/call ceilings and already-accrued spend even
   // for zero-flat-cost tools, because model cost lands on the audit row only
   // AFTER the proxied call completes.
-  if (!isRun && thisCallCost <= 0) return null;
+  if (!isRun && thisCallCost <= 0) return { denial: null, riskFlags: [] };
 
   const status = await computeBudgetStatus(rule, actor, policy, sink, {
     runId: isRun ? actor.runId : undefined,
   });
-  if (!status) return null; // sink can't aggregate — skip (don't hard-deny)
+  if (!status) return { denial: null, riskFlags: [] }; // sink can't aggregate — skip
 
   const projectedUsd = status.currentUsd + thisCallCost;
   const overUsd = projectedUsd > rule.max_usd;
   const overTokens = rule.max_tokens != null && status.currentTokens >= rule.max_tokens;
   const overCalls = rule.max_calls != null && status.currentCalls + 1 > rule.max_calls;
-  if (!overUsd && !overTokens && !overCalls) return null;
+  const maxRatio = Math.max(
+    rule.max_usd > 0 ? projectedUsd / rule.max_usd : 0,
+    rule.max_tokens && rule.max_tokens > 0 ? status.currentTokens / rule.max_tokens : 0,
+    rule.max_calls && rule.max_calls > 0 ? (status.currentCalls + 1) / rule.max_calls : 0
+  );
+  const riskFlags: string[] = [];
+  if (maxRatio >= 0.8) {
+    riskFlags.push('budget_threshold:80');
+    if (isRun) riskFlags.push('run_budget_threshold:80');
+  }
+  if (maxRatio >= 1) {
+    riskFlags.push('budget_threshold:100');
+    if (isRun) riskFlags.push('run_budget_threshold:100');
+  }
+  if (!overUsd && !overTokens && !overCalls) return { denial: null, riskFlags };
 
-  if (rule.mode === BudgetMode.Soft) return null; // soft: observe, don't block
+  if (rule.mode === BudgetMode.Soft) return { denial: null, riskFlags }; // observe, don't block
 
-  return buildDenial(rule, actor, status, {
-    thisCallCost,
-    projectedUsd,
-    overUsd,
-    overTokens,
-    overCalls,
-    isRun,
-  });
+  return {
+    denial: buildDenial(rule, actor, status, {
+      thisCallCost,
+      projectedUsd,
+      overUsd,
+      overTokens,
+      overCalls,
+      isRun,
+    }),
+    riskFlags,
+  };
 }
 
 /** Build the denial PolicyEvaluation, leading with the breached dimension. */

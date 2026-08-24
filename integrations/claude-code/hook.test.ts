@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createServer, Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
-import { mapClaudeCodeTool, evaluate, buildHookResponse, run } from './hook.js';
+import { mapClaudeCodeTool, evaluate, registerHeldAction, buildHookResponse, run } from './hook.js';
 
 describe('mapClaudeCodeTool', () => {
   it('maps Bash → shell.exec', () => {
@@ -21,7 +21,11 @@ describe('mapClaudeCodeTool', () => {
       old_string: 'a',
       new_string: 'b',
     });
-    expect(r).toEqual({ tool: 'files.write', args: { path: '/tmp/x.txt', content: 'b' } });
+    expect(r).toEqual({
+      tool: 'files.write',
+      args: { path: '/tmp/x.txt', content: 'b' },
+      executableOnApproval: false,
+    });
   });
 
   it('maps WebFetch → http.request', () => {
@@ -81,6 +85,18 @@ describe('buildHookResponse', () => {
     expect(parsed.decision).toBe('block');
     expect(parsed.reason).toContain('requires approval');
   });
+
+  it('identifies a registered executable hold and warns Claude not to retry', () => {
+    const r = buildHookResponse({ decision: 'approve' }, mapped, {
+      decision: 'approve',
+      approvalId: 'approval-123',
+      expiresAt: '2026-08-24T00:00:00.000Z',
+    });
+    const parsed = JSON.parse(r.stdout!);
+    expect(parsed.reason).toContain('approval-123');
+    expect(parsed.reason).toContain('execute the exact held action once');
+    expect(parsed.reason).toContain('do not retry');
+  });
 });
 
 /**
@@ -94,21 +110,27 @@ class MockGatekeeper {
   lastBody?: Record<string, unknown>;
   lastTool?: string;
   response: unknown = { decision: 'allow' };
+  responses: unknown[] = [];
+  requests: Array<{ body: Record<string, unknown>; tool: string }> = [];
   status = 200;
 
   start(): Promise<void> {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       this.server = createServer((req, res) => {
         const chunks: Buffer[] = [];
         req.on('data', (c) => chunks.push(c));
         req.on('end', () => {
           this.lastBody = JSON.parse(Buffer.concat(chunks).toString('utf8'));
           this.lastTool = req.url?.replace(/^\/tool\//, '');
+          this.requests.push({ body: this.lastBody, tool: this.lastTool ?? '' });
           res.writeHead(this.status, { 'content-type': 'application/json' });
-          res.end(JSON.stringify(this.response));
+          res.end(JSON.stringify(this.responses.shift() ?? this.response));
         });
       });
+      const onError = (error: Error) => reject(error);
+      this.server.once('error', onError);
       this.server.listen(0, '127.0.0.1', () => {
+        this.server.off('error', onError);
         this.port = (this.server.address() as AddressInfo).port;
         resolve();
       });
@@ -117,6 +139,9 @@ class MockGatekeeper {
 
   stop(): Promise<void> {
     return new Promise((resolve, reject) => {
+      // Native fetch pools keep-alive sockets. Close them explicitly so the
+      // package test/pack command exits deterministically on every Node build.
+      this.server.closeAllConnections();
       this.server.close((err) => (err ? reject(err) : resolve()));
     });
   }
@@ -172,6 +197,27 @@ describe('evaluate (HTTP round-trip)', () => {
       )
     ).rejects.toThrow(/HTTP 500/);
   });
+
+  it('registers a non-dry-run held action with a stable idempotency key', async () => {
+    mock.response = {
+      decision: 'approve',
+      approvalId: 'approval-123',
+      expiresAt: '2026-08-24T00:00:00.000Z',
+    };
+    await registerHeldAction(
+      mock.baseUrl(),
+      'shell.exec',
+      { command: 'deploy' },
+      {
+        agentName: 'claude-code',
+        agentRole: 'claude-code',
+        timeoutMs: 2000,
+        sessionId: 'session-1',
+      }
+    );
+    expect(mock.lastBody?.dryRun).toBe(false);
+    expect(mock.lastBody?.idempotencyKey).toMatch(/^claude-code:[a-f0-9]{64}$/);
+  });
 });
 
 describe('run (full hook lifecycle, mocked Gatekeeper)', () => {
@@ -200,13 +246,20 @@ describe('run (full hook lifecycle, mocked Gatekeeper)', () => {
   });
 
   it('Puppeteer escalation step 2: keychain-read returns block JSON to Claude Code', async () => {
-    mock.response = {
-      decision: 'approve',
-      reasonCode: 'BOUNDARY_REQUIRES_APPROVAL',
-      humanExplanation: 'Inspecting macOS Keychain entries crosses a sensitive local boundary.',
-      remediation:
-        "Use a throwaway Chromium profile with --user-data-dir=$(mktemp -d) and --use-mock-keychain instead of inspecting the user's Keychain.",
-    };
+    mock.responses = [
+      {
+        decision: 'approve',
+        reasonCode: 'BOUNDARY_REQUIRES_APPROVAL',
+        humanExplanation: 'Inspecting macOS Keychain entries crosses a sensitive local boundary.',
+        remediation:
+          "Use a throwaway Chromium profile with --user-data-dir=$(mktemp -d) and --use-mock-keychain instead of inspecting the user's Keychain.",
+      },
+      {
+        decision: 'approve',
+        approvalId: 'approval-123',
+        expiresAt: '2026-08-24T00:00:00.000Z',
+      },
+    ];
     const result = await run(
       JSON.stringify({
         tool_name: 'Bash',
@@ -218,6 +271,27 @@ describe('run (full hook lifecycle, mocked Gatekeeper)', () => {
     expect(parsed.decision).toBe('block');
     expect(parsed.reason).toMatch(/Keychain/);
     expect(parsed.reason).toMatch(/throwaway/);
+    expect(parsed.reason).toMatch(/approval-123/);
+    expect(mock.requests).toHaveLength(2);
+    expect(mock.requests[0]!.body.dryRun).toBe(true);
+    expect(mock.requests[1]!.body.dryRun).toBe(false);
+  });
+
+  it('policy-checks Edit but never registers destructive full-file execution', async () => {
+    mock.response = {
+      decision: 'approve',
+      reasonCode: 'BOUNDARY_REQUIRES_APPROVAL',
+    };
+    const result = await run(
+      JSON.stringify({
+        tool_name: 'Edit',
+        tool_input: { file_path: '/tmp/x', old_string: 'a', new_string: 'b' },
+      })
+    );
+    const parsed = JSON.parse(result.stdout!);
+    expect(parsed.reason).toContain('cannot be reproduced safely');
+    expect(mock.requests).toHaveLength(1);
+    expect(mock.requests[0]!.body.dryRun).toBe(true);
   });
 
   it('Puppeteer escalation step 3: keychain-delete returns block JSON', async () => {

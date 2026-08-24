@@ -351,12 +351,15 @@ describe('anthropic proxy — route', () => {
     vi.stubGlobal('fetch', fetchMock);
     const app = Fastify();
     registerAnthropicProxy(app, async () => ({
-      decision: 'deny',
-      reason: 'Budget "per-run" exceeded',
-      reasonCode: 'RUN_BUDGET_EXCEEDED',
-      humanExplanation: 'Run run-1 has spent $5.50 of the $5.00 "per-run" budget.',
-      remediation: 'Start a new run or raise the ceiling.',
-      riskFlags: ['budget_exceeded', 'run_budget_exceeded'],
+      denial: {
+        decision: 'deny',
+        reason: 'Budget "per-run" exceeded',
+        reasonCode: 'RUN_BUDGET_EXCEEDED',
+        humanExplanation: 'Run run-1 has spent $5.50 of the $5.00 "per-run" budget.',
+        remediation: 'Start a new run or raise the ceiling.',
+        riskFlags: ['budget_exceeded', 'run_budget_exceeded'],
+      },
+      riskFlags: ['budget_threshold:100'],
     }));
     await app.ready();
 
@@ -394,7 +397,7 @@ describe('anthropic proxy — route', () => {
       )
     );
     const app = Fastify();
-    registerAnthropicProxy(app, async () => null);
+    registerAnthropicProxy(app, async () => ({ denial: null, riskFlags: [] }));
     await app.ready();
     const res = await app.inject({
       method: 'POST',
@@ -404,6 +407,36 @@ describe('anthropic proxy — route', () => {
     });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('msg_ok');
+    await app.close();
+    vi.unstubAllGlobals();
+  });
+
+  it('copies non-blocking 80% budget markers into request audit', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response('{"id":"msg_ok"}', {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+      )
+    );
+    const app = Fastify();
+    registerAnthropicProxy(app, async () => ({
+      denial: null,
+      riskFlags: ['budget_threshold:80', 'run_budget_threshold:80'],
+    }));
+    await app.ready();
+    await app.inject({
+      method: 'POST',
+      url: '/anthropic/v1/messages',
+      headers: { 'content-type': 'application/json' },
+      payload: { model: 'claude-opus-4-7', messages: [] },
+    });
+    expect(logToolRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ riskFlags: expect.arrayContaining(['budget_threshold:80']) })
+    );
     await app.close();
     vi.unstubAllGlobals();
   });

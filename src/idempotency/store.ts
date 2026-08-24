@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { config } from '../config.js';
 import { computeHash } from '../utils.js';
@@ -21,8 +21,9 @@ const recordCache = new Map<string, IdempotencyRecord>();
 
 function ensureIdempotencyDir(): void {
   if (!existsSync(config.idempotencyDir)) {
-    mkdirSync(config.idempotencyDir, { recursive: true });
+    mkdirSync(config.idempotencyDir, { recursive: true, mode: 0o700 });
   }
+  chmodSync(config.idempotencyDir, 0o700);
 }
 
 function getRecordPath(key: string): string {
@@ -95,6 +96,12 @@ export function completeIdempotencyRecord(
 function saveRecord(record: IdempotencyRecord): void {
   ensureIdempotencyDir();
   const path = getRecordPath(record.key);
-  writeFileSync(path, JSON.stringify(record, null, 2), 'utf-8');
+  const temporary = `${path}.${process.pid}.tmp`;
+  writeFileSync(temporary, JSON.stringify(record, null, 2), {
+    encoding: 'utf-8',
+    mode: 0o600,
+  });
+  renameSync(temporary, path);
+  chmodSync(path, 0o600);
   recordCache.set(record.key, record);
 }

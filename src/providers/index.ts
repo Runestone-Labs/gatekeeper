@@ -5,6 +5,7 @@ import { SlackApprovalProvider } from './slack-approval.js';
 import { JsonlAuditSink } from './jsonl-audit.js';
 import { PostgresAuditSink } from './postgres-audit.js';
 import { YamlPolicySource } from './yaml-policy.js';
+import { CompositeAuditSink } from './composite-audit.js';
 import {
   RunestoneCloudApproval,
   RunestoneCloudAudit,
@@ -53,18 +54,25 @@ export function getAuditSink(): AuditSink {
     return auditSink;
   }
 
+  let primary: AuditSink;
   switch (config.auditSink) {
     case 'postgres':
-      auditSink = new PostgresAuditSink();
+      primary = new PostgresAuditSink();
       break;
     case 'runestone':
-      auditSink = new RunestoneCloudAudit();
+      // Backwards-compatible migration: Cloud is never authoritative.
+      primary = new JsonlAuditSink();
       break;
     case 'jsonl':
     default:
-      auditSink = new JsonlAuditSink();
+      primary = new JsonlAuditSink();
       break;
   }
+
+  auditSink =
+    config.runestoneApiUrl && config.runestoneApiKey && config.runestoneInstanceId
+      ? new CompositeAuditSink(primary, [new RunestoneCloudAudit()])
+      : primary;
 
   return auditSink;
 }

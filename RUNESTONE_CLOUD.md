@@ -1,120 +1,114 @@
-# Runestone Cloud
+# Runestone Gatekeeper Cloud
 
-This document explains the relationship between the open source Runestone
-Gatekeeper and Runestone Cloud, the commercial offering.
+> **Status: demand validation, not general availability.** The local OSS product works today.
+> The hosted team layer described below is a tested product proposal and dogfood protocol; public
+> build-out remains frozen until qualified external demand crosses the evidence gate. No payment is
+> collected through the beta form. [Describe your workload and $49/month intent](https://gatekeeper.runestonelabs.io/cloud-beta?utm_source=github&utm_medium=cloud_spec&utm_campaign=cloud_beta_validation).
 
-## Architecture Split
+Gatekeeper Cloud coordinates teams. It does not move policy enforcement,
+exact actions, execution, budgets, or forensic authority out of the local
+Gatekeeper daemon.
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         YOUR INFRASTRUCTURE                             │
-│                                                                         │
-│   ┌─────────────┐      ┌──────────────────────────────────────────┐    │
-│   │  AI Agent   │─────▶│  Runestone Gatekeeper (OSS)              │    │
-│   │             │      │                                          │    │
-│   │  - Claude   │      │  - Policy evaluation                     │    │
-│   │  - GPT      │      │  - Tool execution                        │    │
-│   │  - Custom   │      │  - Local approval handling               │    │
-│   └─────────────┘      │  - Audit logging                         │    │
-│                        └──────────────────┬───────────────────────┘    │
-│                                           │                             │
-└───────────────────────────────────────────┼─────────────────────────────┘
-                                            │ Optional
-                                            │ (API calls)
-                                            ▼
-                    ┌───────────────────────────────────────────┐
-                    │           RUNESTONE CLOUD                 │
-                    │                                           │
-                    │  - Managed policy distribution            │
-                    │  - Web-based approval UI                  │
-                    │  - Audit log aggregation & search         │
-                    │  - Team workflows & escalation            │
-                    │  - Compliance reporting                   │
-                    └───────────────────────────────────────────┘
+## Authority boundary
+
+```text
+agent/runtime → local Gatekeeper → allow / hold / deny → local executor
+                       │
+                       ├── authoritative JSONL/Postgres receipt
+                       │
+                       └── outbound-only, redacted Cloud protocol
+                                  │
+                                  └── named team approver
 ```
 
-## What Stays Local (OSS)
+Gatekeeper only controls actions routed through it. `gatekeeper doctor` reports
+the coverage it can prove and lists known native-tool gaps.
 
-The open source gatekeeper handles all **execution** locally:
+## What never leaves by default
 
-| Capability | Description |
-|------------|-------------|
-| Policy evaluation | Decisions are made locally based on local policy |
-| Tool execution | Shell, file, and HTTP operations run on your machine |
-| Request signing | HMAC signatures generated with your secret |
-| Local approvals | Console-based approval flow works offline |
-| JSONL audit logs | Written to local disk |
+- Raw prompts or model/tool results
+- Raw tool arguments or complete commands as blobs
+- File contents
+- HTTP paths, query strings, bodies, or headers
+- Environment values
+- Unapproved custom-tool arguments
 
-**Your code and data never leave your infrastructure.**
+The local daemon may send tool/actor/decision metadata, a policy hash, an action
+digest, cost/token counts, timestamps, risk categories, approval state, and a
+purpose-built summary:
 
-## What the Cloud Adds
+- Shell: executable, sanitized arguments, normalized working directory
+- File: normalized path, byte count, content hash
+- HTTP: method and origin only
+- Custom tools: explicitly allowlisted scalar fields only
 
-Runestone Cloud provides optional **governance infrastructure**:
+Every selected value is scanned again for embedded credentials, normalized,
+and truncated before it enters the local spool. The Cloud API independently
+validates an exact, versioned schema and rejects unknown/raw fields.
 
-| Capability | Description |
-|------------|-------------|
-| Policy management | Version-controlled policies with templates and inheritance |
-| Approval UI | Web-based approval interface with mobile notifications |
-| Audit aggregation | Centralized search across all gatekeepers |
-| Team workflows | Approval routing, delegation, and escalation |
-| Compliance | Audit exports, retention policies, access controls |
-| Monitoring | Dashboards, alerts, anomaly detection |
+## Outbound approval protocol
 
-## Why This Split?
+1. Local Gatekeeper stores the exact pending action.
+2. It registers `CloudApprovalV1`: approval ID, instance, policy hash, action
+   digest, expiry, and redacted review summary.
+3. A named Clerk user records a decision in the workspace inbox.
+4. The local daemon long-polls for `CloudDecisionV1`.
+5. It applies the decision only if approval ID, action digest, instance, status,
+   and expiry match the locally stored action.
+6. Local Gatekeeper acknowledges executed, denied, expired, or failed.
 
-### Execution stays local
+Replays, conflicting decisions, stale responses, malformed payloads, and digest
+mismatches fail closed. Cloud never receives a callback URL and never reaches
+into localhost.
 
-- **Privacy**: Your agent's actions and data remain on your infrastructure
-- **Latency**: No round-trip to cloud for every tool execution
-- **Reliability**: Works offline; cloud outage doesn't block your agents
-- **Security**: Secrets and sensitive operations never transit external networks
+Ordinary locally allowed actions continue during Cloud failure. Remote holds
+stay pending and expire safely. Local audit is written before the buffered
+Cloud secondary; a bounded local spool retries redacted events later.
 
-### Governance can centralize
+The redacted stream has its own receipt chain, which Cloud recomputes before
+acceptance. With JSONL as the local authority, each event also carries the
+local audit sequence and adjacent receipt hashes. Cloud anchors any history
+created before connection and flags later gaps or reordering without receiving
+the raw local record needed to recreate its hash. If the bounded spool fills,
+Gatekeeper preserves the oldest pending events and never deletes local audit;
+the next sequence jump becomes a deterministic finding instead of being hidden.
 
-- **Visibility**: See all agent activity across your organization
-- **Consistency**: Distribute policies from a single source of truth
-- **Collaboration**: Multiple team members can review and approve
-- **Compliance**: Meet audit and retention requirements
-
-## No Vendor Lock-in
-
-The OSS gatekeeper is fully functional without Runestone Cloud:
-
-- Use `APPROVAL_PROVIDER=local` for console-based approvals
-- Use `AUDIT_SINK=jsonl` for local audit logs
-- Use `POLICY_SOURCE=yaml` for local policy files
-
-Runestone Cloud is additive. You can:
-- Start with OSS only
-- Add Cloud for specific capabilities
-- Return to OSS-only at any time
-
-All policy formats and audit schemas are documented and stable.
-
-## Provider Configuration
-
-To use Runestone Cloud providers, configure your environment:
+## Experimental connect flow
 
 ```bash
-# Approval provider
-APPROVAL_PROVIDER=runestone
-RUNESTONE_API_KEY=your-api-key
-RUNESTONE_API_URL=https://api.runestone.dev
-
-# Audit sink
-AUDIT_SINK=runestone
-
-# Policy source
-POLICY_SOURCE=runestone
+npm --prefix integrations/cli run build
+node integrations/cli/dist/index.js connect
+node integrations/cli/dist/index.js doctor
 ```
 
-## Pricing and Access
+The CLI is currently a source preview, not a published npm package. This flow requires an explicitly
+provisioned test control plane; the public Cloud endpoint should not be assumed available. Device
+authorization creates one scoped instance token. Only its SHA-256 hash
+is stored in Cloud. The raw token is written to
+`~/.config/gatekeeper/cloud.json` with mode `0600` and can be revoked with:
 
-Runestone Cloud is currently in private beta.
+```bash
+node integrations/cli/dist/index.js disconnect
+```
 
-Contact: enterprise@runestone.dev
+Disconnecting never disables local enforcement.
 
-## Questions
+## Planned offer under validation
 
-For questions about the OSS/Cloud boundary or enterprise features,
-open an issue or email enterprise@runestone.dev.
+| Plan | Price | Included |
+| --- | ---: | --- |
+| OSS Local | $0 | Local policy, budgets, approvals, receipts, MCP, Claude Code, OpenClaw |
+| Cloud Free (planned) | $0 | 1 instance, 1 approver, hosted inbox, status, 7-day redacted history |
+| Cloud Team (planned) | $49/month or $490/year | 5 instances, 5 members, 90-day history, shared policy publishing, exports, drift alerts, weekly reports |
+
+Approvals are observed but not hard-metered during validation.
+
+## Cloud policy behavior
+
+Policy changes are draft-first and must be explicitly published. An instance
+validates the downloaded policy and its canonical hash before caching it at
+mode `0600`. If Cloud is unavailable, the instance continues with that
+last-known-good policy. A fresh Cloud policy source with neither a valid remote
+policy nor a valid local cache fails closed at startup.
+
+Local YAML remains the default policy source.

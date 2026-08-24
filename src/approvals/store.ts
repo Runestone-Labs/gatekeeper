@@ -1,4 +1,12 @@
-import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from 'node:fs';
+import {
+  chmodSync,
+  readFileSync,
+  writeFileSync,
+  readdirSync,
+  existsSync,
+  mkdirSync,
+  renameSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { config } from '../config.js';
 import { PendingApproval, Actor, RequestContext } from '../types.js';
@@ -24,6 +32,9 @@ export function createApproval(params: {
   external?: boolean;
   /** Override the default expiry window (ms from now). */
   ttlMs?: number;
+  policyHash?: string;
+  reasonCode?: string;
+  riskCategory?: string;
 }): { approval: PendingApproval; approveUrl: string; denyUrl: string } {
   const id = generateId();
   const now = new Date();
@@ -43,6 +54,9 @@ export function createApproval(params: {
     idempotencyKey: params.idempotencyKey,
     createdAt: now.toISOString(),
     expiresAt: expiresAt.toISOString(),
+    policyHash: params.policyHash,
+    reasonCode: params.reasonCode,
+    riskCategory: params.riskCategory,
     metadata: params.metadata,
     external: params.external,
   };
@@ -195,7 +209,13 @@ function loadApproval(id: string): PendingApproval | null {
 function saveApprovalToDisk(approval: PendingApproval): void {
   ensureApprovalsDir();
   const filePath = getApprovalPath(approval.id);
-  writeFileSync(filePath, JSON.stringify(approval, null, 2), 'utf-8');
+  const temporary = `${filePath}.${process.pid}.tmp`;
+  writeFileSync(temporary, JSON.stringify(approval, null, 2), {
+    encoding: 'utf-8',
+    mode: 0o600,
+  });
+  renameSync(temporary, filePath);
+  chmodSync(filePath, 0o600);
 }
 
 /**
@@ -210,8 +230,9 @@ function getApprovalPath(id: string): string {
  */
 function ensureApprovalsDir(): void {
   if (!existsSync(config.approvalsDir)) {
-    mkdirSync(config.approvalsDir, { recursive: true });
+    mkdirSync(config.approvalsDir, { recursive: true, mode: 0o700 });
   }
+  chmodSync(config.approvalsDir, 0o700);
 }
 
 /**
@@ -303,8 +324,7 @@ export function listPendingApprovals(): Array<{
 
   // Oldest first: the hold closest to expiry is the one to surface on top.
   pending.sort(
-    (a, b) =>
-      new Date(a.approval.expiresAt).getTime() - new Date(b.approval.expiresAt).getTime()
+    (a, b) => new Date(a.approval.expiresAt).getTime() - new Date(b.approval.expiresAt).getTime()
   );
 
   return pending;

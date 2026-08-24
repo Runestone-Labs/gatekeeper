@@ -1,8 +1,7 @@
 # `@runestone-labs/gatekeeper-claude-code`
 
 Claude Code PreToolUse hook that routes `Bash`, `Write`, `Edit`, and `WebFetch`
-tool calls through a running Runestone Gatekeeper server before Claude Code
-executes them.
+tool calls through a running Runestone Gatekeeper server before execution.
 
 The hook adds a sensitive-resource boundary to Claude Code: it catches the
 "helpful overreach" failure mode where an agent debugging one thing escalates
@@ -95,23 +94,32 @@ Gatekeeper.
    | ---------------- | -------------------- | --------------------------------------------------------- |
    | `Bash`           | `shell.exec`         | Forwards `command`, `cwd`, `timeoutMs`/`timeout`.         |
    | `Write`          | `files.write`        | `file_path` → `path`, `content` → `content`.              |
-   | `Edit`           | `files.write`        | Path-based check; `new_string` is sent as `content`.      |
+   | `Edit`           | `files.write`        | Policy check only; never registered as executable because an edit is not a whole-file write. |
    | `WebFetch`       | `http.request`       | Sent as `GET`.                                            |
-   | Read / Glob / Grep / NotebookEdit / MCP tools | (skipped) | Not gated in v0.4. Path-based read gating arrives with the planned `files.read` tool. |
+   | Read / Glob / Grep / NotebookEdit / MCP tools | (skipped) | Not gated in v0.5. `gatekeeper doctor` reports this coverage boundary. |
 
-3. POSTs `dryRun: true` to `POST /tool/:toolName` so Gatekeeper evaluates the
-   request *without* trying to execute it. Claude Code remains the only
-   executor.
-4. Translates the decision back into Claude Code's hook output:
+3. POSTs `dryRun: true` to `POST /tool/:toolName` for policy and budget
+   evaluation.
+4. If Bash, Write, or WebFetch requires approval, POSTs the exact action again
+   as a real hold with a deterministic idempotency key. Gatekeeper executes it
+   once after an exact local or Cloud decision. Claude Code receives a block
+   telling it not to retry.
+5. Translates the decision back into Claude Code's hook output:
    - **allow** → exit 0, no output. Claude Code runs the tool normally.
    - **deny** or **require_approval** → emits
      `{ "decision": "block", "reason": "..." }` to stdout. Claude Code surfaces
      the reason to the model and lets it pivot.
 
+`Edit` remains policy checked, but an approval cannot execute it. Mapping
+`new_string` to `files.write` would overwrite the whole file, so the hook safely
+blocks and asks for a manual edit or policy change instead.
+
 ## Failure mode
 
-If the Gatekeeper server is unreachable, the hook **fails open** by default
-(exit 0, no message) so an unrunning server doesn't break your day.
+Legacy manual installs fail open if the Gatekeeper server is unreachable.
+`gatekeeper init --client claude-code --apply` creates a fail-closed managed
+configuration, and `gatekeeper doctor` treats a connected fail-open install as
+unprotected.
 
 Set `GATEKEEPER_FAIL_CLOSED=1` to flip to **fail closed**: every gated tool
 call is blocked until the server returns.
