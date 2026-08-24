@@ -63,6 +63,10 @@ gatekeeper disconnect
 Do not expect the public Cloud endpoint to be available during demand validation. Disconnect revokes
 Cloud access without turning off local OSS enforcement. See [RUNESTONE_CLOUD.md](RUNESTONE_CLOUD.md).
 
+Gatekeeper only controls actions that are actually routed through it. Native or bypass routes remain outside its boundary, so verify each client's real routing configuration before describing a runtime as protected.
+
+The local OSS product is available now. A possible $49/month team Cloud layer is in demand validation, not generally available, and no payment is collected today. [Describe your workload and willingness to pay](https://gatekeeper.runestonelabs.io/cloud-beta?utm_source=github&utm_medium=readme&utm_campaign=cloud_beta_validation).
+
 ## Sensitive Boundary Protection
 
 Coding agents fail in subtle ways. They start with a safe task, then escalate
@@ -617,14 +621,16 @@ See the full [client README](integrations/typescript-client/README.md) for all a
 
 Gatekeeper is designed to be agent-agnostic. Any agent that can route tool calls over HTTP can integrate with Gatekeeper. See [INTEGRATING_AGENTS.md](INTEGRATING_AGENTS.md) for the integration pattern.
 
-## Planned self-serve Cloud
+## Planned Team Cloud
 
-OSS Local remains free and authoritative. Cloud Free adds one instance, one
-approver, a hosted inbox, health/budget status, and seven-day redacted history.
-Cloud Team is planned at $49/month or $490/year for five instances and five members, with
-90-day history, shared policy versions, exports, drift alerts, and weekly
-reports. Cloud is not generally available and no payment is collected today.
-[Join demand validation](https://gatekeeper.runestonelabs.io/cloud-beta?utm_source=github&utm_medium=readme&utm_campaign=cloud_beta_validation).
+OSS Local remains free and authoritative. Runestone is validating an optional
+hosted layer for shared approvals, policy versions, redacted evidence, drift
+alerts, and weekly reports. The proposed Team plan is $49/month for five
+instances and five members.
+
+Cloud development remains frozen until at least five qualified external teams
+and three explicit $49/month commitments cross the public demand gate. [Join
+demand validation](https://gatekeeper.runestonelabs.io/cloud-beta?utm_source=github&utm_medium=readme&utm_campaign=cloud_beta_validation).
 
 Cloud never receives raw prompts, results, file contents, HTTP bodies or
 headers, environment values, or arbitrary custom arguments. See
