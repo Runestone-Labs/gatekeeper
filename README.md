@@ -47,13 +47,8 @@ gatekeeper verify ./data/audit
 Supported setup targets are `claude-code`, `openclaw`, and `mcp`. Fresh Claude Code patches set `GATEKEEPER_FAIL_CLOSED=1`. Existing fail-open hooks remain usable, but `doctor` reports them as a protection failure with the exact migration command.
 
 The Cloud connection protocol is implemented for dogfooding, but the hosted team product is not
-generally available. Cloud development is paused while Runestone validates whether teams have a
-consequential workload and will pay $49/month for shared approvals, policy, and redacted evidence.
-Join demand validation here:
-
-https://gatekeeper.runestonelabs.io/cloud-beta?utm_source=github&utm_medium=readme&utm_campaign=cloud_beta_validation
-
-The experimental connection flow uses browser device authorization and a scoped instance token stored locally with mode `0600`:
+generally available. The experimental connection flow uses browser device authorization and a scoped
+instance token stored locally with mode `0600`:
 
 ```bash
 gatekeeper connect
@@ -65,7 +60,17 @@ Cloud access without turning off local OSS enforcement. See [RUNESTONE_CLOUD.md]
 
 Gatekeeper only controls actions that are actually routed through it. Native or bypass routes remain outside its boundary, so verify each client's real routing configuration before describing a runtime as protected.
 
-The local OSS product is available now. A possible $49/month team Cloud layer is in demand validation, not generally available, and no payment is collected today. [Describe your workload and willingness to pay](https://gatekeeper.runestonelabs.io/cloud-beta?utm_source=github&utm_medium=readme&utm_campaign=cloud_beta_validation).
+## Need a teammate to handle approvals while agents run unattended?
+
+The local Gatekeeper server and MCP integration are free. We're testing demand for **Gatekeeper
+Team at $49/month**, for up to five members and five instances: route an agent's held action to an
+accountable teammate for approval or denial, with a record of what happened. This is a proposed
+Cloud service, not a public hosted product; **no payment is collected** during this test.
+
+[See the proposed workflow and share your team's needs](https://gatekeeper.runestonelabs.io/cloud-beta?utm_source=github_readme&utm_medium=docs&utm_campaign=gatekeeper_self_serve_2026_09).
+You can also optionally report whether you've routed a first real action through local Gatekeeper
+or used it again on a later day. These are manual form choices, not verified external activation.
+Don't send commands or raw audit logs; this test adds no automatic usage reporting to the MCP server.
 
 ## Sensitive Boundary Protection
 

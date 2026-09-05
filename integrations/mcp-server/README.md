@@ -41,6 +41,20 @@ It runs over stdio. Add it to your MCP client config, e.g. Claude Desktop
 | `GATEKEEPER_URL` | no | `http://127.0.0.1:3847` | Gatekeeper base URL. |
 | `GATEKEEPER_AGENT_NAME` | no | `mcp-client` | Name recorded in audit logs. |
 
+## Shared approvals for unattended agents
+
+Local Gatekeeper and this MCP integration are free. Need a teammate to handle approvals while your
+agents run unattended? We're testing **Gatekeeper Team at $49/month**, for up to five members and
+five instances. The proposed Cloud service would coordinate a held action, a teammate's approval
+or denial, and a record of the outcome. **Cloud is planned, not publicly available, and no payment
+is collected** during this test. Only actions actually routed through Gatekeeper are covered;
+installing the MCP server does not cover a client's other tools.
+
+[See the proposed workflow and share your team's needs](https://gatekeeper.runestonelabs.io/cloud-beta?utm_source=npm_mcp_readme&utm_medium=docs&utm_campaign=gatekeeper_self_serve_2026_09).
+The form also lets you optionally report a first real routed action or return use on a later day.
+These are manual self-reports, not verified external activation. Don't send commands or raw audit
+logs; this test adds no automatic usage reporting to the MCP server.
+
 ## Tools
 
 | Tool | Gatekeeper tool | Use |
