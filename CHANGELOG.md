@@ -41,7 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   whole-file execution. Published as `@runestone-labs/gatekeeper-claude-code`
   0.5.0.
 
-## [0.6.1] - 2026-10-16
+## [0.6.1] - 2026-10-09
 
 ### Security
 
