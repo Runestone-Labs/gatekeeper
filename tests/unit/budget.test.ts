@@ -563,3 +563,73 @@ describe('budget — audit sink failure', () => {
     expect(result).toEqual({ denial: null, riskFlags: [] });
   });
 });
+
+describe('budget — actor-scope ceilings bind every matched call', () => {
+  const actorRule = policyWithBudget.budgets![0];
+
+  it('max_calls caps free tools too (every call counts toward it)', async () => {
+    const policy: Policy = { ...policyWithBudget, budgets: [{ ...actorRule, max_calls: 10 }] };
+    const sink = stubSink(makeSummary([{ tool: 'files.read', callCount: 10 }]));
+    const denial = await enforceBudget('files.read', baseActor, policy, sink);
+    expect(denial?.reasonCode).toBe('BUDGET_EXCEEDED');
+    expect(denial?.humanExplanation).toContain('10 tool calls');
+  });
+
+  it('max_tokens caps proxied model calls', async () => {
+    const policy: Policy = {
+      tools: { 'anthropic.proxy': { decision: 'allow' } },
+      budgets: [
+        {
+          name: 'openclaw-daily',
+          match: { actor_role: 'openclaw' },
+          window: BudgetWindow.Day,
+          max_usd: 100,
+          max_tokens: 1000,
+        },
+      ],
+    };
+    const actor: Actor = { type: 'agent', name: 'openclaw', role: 'openclaw' };
+    const sink = stubSink(
+      makeRichSummary([
+        { tool: 'anthropic.proxy', callCount: 3, totalCostUsd: 0.1, totalTokens: 1500 },
+      ])
+    );
+    expect((await enforceBudget('anthropic.proxy', actor, policy, sink))?.reasonCode).toBe(
+      'BUDGET_EXCEEDED'
+    );
+  });
+
+  it('max_usd caps proxied model calls on real accrued spend', async () => {
+    const policy: Policy = {
+      tools: { 'anthropic.proxy': { decision: 'allow' } },
+      budgets: [
+        {
+          name: 'openclaw-daily',
+          match: { actor_role: 'openclaw' },
+          window: BudgetWindow.Day,
+          max_usd: 5,
+        },
+      ],
+    };
+    const actor: Actor = { type: 'agent', name: 'openclaw', role: 'openclaw' };
+    const sink = stubSink(
+      makeRichSummary([{ tool: 'anthropic.proxy', callCount: 40, totalCostUsd: 6.25 }])
+    );
+    const denial = await enforceBudget('anthropic.proxy', actor, policy, sink);
+    expect(denial?.reasonCode).toBe('BUDGET_EXCEEDED');
+    expect(denial?.humanExplanation).toContain('$6.25');
+    expect(denial?.humanExplanation).not.toContain('This call would cost');
+  });
+
+  it('a USD-only rule still lets free tools run once the cap is hit (v1)', async () => {
+    const sink = stubSink(makeSummary([{ tool: 'http.request', callCount: 500 }])); // $5 > $1
+    const result = await checkBudget('files.read', baseActor, policyWithBudget, sink);
+    expect(result).toEqual({ denial: null, riskFlags: [] });
+  });
+
+  it('a USD-only rule still denies a priced tool once the cap is hit', async () => {
+    const sink = stubSink(makeSummary([{ tool: 'http.request', callCount: 500 }]));
+    const denial = await enforceBudget('http.request', baseActor, policyWithBudget, sink);
+    expect(denial?.reasonCode).toBe('BUDGET_EXCEEDED');
+  });
+});

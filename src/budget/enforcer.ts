@@ -54,6 +54,12 @@ export interface BudgetStatus {
   byTool: Array<{ tool: string; callCount: number; costUsd: number }>;
 }
 
+/**
+ * Tools whose USD lands on the audit row AFTER the call (metered per token),
+ * so a zero flat `cost_usd` doesn't mean the call is free.
+ */
+const METERED_TOOLS = new Set(['anthropic.proxy']);
+
 export interface BudgetCheckResult {
   denial: PolicyEvaluation | null;
   /** Non-blocking markers copied into the audit/Cloud event stream. */
@@ -231,11 +237,15 @@ async function evaluateRule(
   if (isRun && !actor.runId) return { denial: null, riskFlags: [] };
 
   const thisCallCost = policy.tools[toolName]?.cost_usd ?? 0;
-  // Actor scope: zero-cost tools bypass entirely (preserves v1 behavior).
-  // Run scope: still enforce token/call ceilings and already-accrued spend even
-  // for zero-flat-cost tools, because model cost lands on the audit row only
-  // AFTER the proxied call completes.
-  if (!isRun && thisCallCost <= 0) return { denial: null, riskFlags: [] };
+  // Call and token ceilings bind every matched call: each call counts toward
+  // max_calls, and model tokens land on the audit row only AFTER the call.
+  // The USD ceiling binds any call that can add spend (a flat cost_usd or a
+  // metered tool). Run scope also enforces already-accrued spend on free tools;
+  // actor scope exempts them so free tools stay usable once a USD-only cap is
+  // hit (v1 behavior).
+  const usdApplies = isRun || thisCallCost > 0 || METERED_TOOLS.has(toolName);
+  const hasCountCeiling = rule.max_calls != null || rule.max_tokens != null;
+  if (!usdApplies && !hasCountCeiling) return { denial: null, riskFlags: [] };
 
   const status = await computeBudgetStatus(rule, actor, policy, sink, {
     runId: isRun ? actor.runId : undefined,
@@ -251,11 +261,11 @@ async function evaluateRule(
   }
 
   const projectedUsd = status.currentUsd + thisCallCost;
-  const overUsd = projectedUsd > rule.max_usd;
+  const overUsd = usdApplies && projectedUsd > rule.max_usd;
   const overTokens = rule.max_tokens != null && status.currentTokens >= rule.max_tokens;
   const overCalls = rule.max_calls != null && status.currentCalls + 1 > rule.max_calls;
   const maxRatio = Math.max(
-    rule.max_usd > 0 ? projectedUsd / rule.max_usd : 0,
+    usdApplies && rule.max_usd > 0 ? projectedUsd / rule.max_usd : 0,
     rule.max_tokens && rule.max_tokens > 0 ? status.currentTokens / rule.max_tokens : 0,
     rule.max_calls && rule.max_calls > 0 ? (status.currentCalls + 1) / rule.max_calls : 0
   );
@@ -344,8 +354,10 @@ function buildDenial(
       `${subject} has spent $${status.currentUsd.toFixed(decimals)} ` +
       `of the $${rule.max_usd.toFixed(2)} "${rule.name}" budget` +
       (ctx.isRun ? '' : ` within the current ${rule.window} window`) +
-      `. This call would cost $${ctx.thisCallCost.toFixed(decimals)}, ` +
-      `pushing the total to $${ctx.projectedUsd.toFixed(decimals)}.`;
+      (ctx.thisCallCost > 0
+        ? `. This call would cost $${ctx.thisCallCost.toFixed(decimals)}, ` +
+          `pushing the total to $${ctx.projectedUsd.toFixed(decimals)}.`
+        : '.');
   } else if (ctx.overTokens) {
     humanExplanation =
       `${subject} has used ${status.currentTokens.toLocaleString()} tokens, ` +
