@@ -42,7 +42,7 @@ function makeSummary(rows: Array<{ tool: string; callCount: number }>): UsageSum
       day: '2026-04-19',
       callCount: r.callCount,
       totalDurationMs: r.callCount * 100,
-      decisions: { allow: r.callCount },
+      decisions: { executed: r.callCount },
     })),
     totalCalls: rows.reduce((s, r) => s + r.callCount, 0),
     distinctActors: 1,
@@ -474,5 +474,92 @@ describe('budget — incomplete usage history', () => {
     const result = await checkBudget('http.request', baseActor, policyWithBudget, sink);
     expect(result.denial).toBeNull();
     expect(result.riskFlags).not.toContain('budget_usage_incomplete');
+  });
+});
+
+describe('budget — what counts as a call', () => {
+  function row(decisions: Record<string, number> | undefined, callCount: number): UsageRow {
+    return {
+      actorName: 'agent',
+      actorRole: 'researcher',
+      tool: 'http.request',
+      day: '2026-04-19',
+      callCount,
+      totalDurationMs: null,
+      decisions: decisions as Record<string, number>,
+      totalCostUsd: null,
+      totalTokens: null,
+    };
+  }
+  function summaryOf(rows: UsageRow[]): UsageSummary {
+    return {
+      rows,
+      totalCalls: rows.reduce((s, r) => s + r.callCount, 0),
+      distinctActors: 1,
+      distinctTools: 1,
+      filter: {},
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  it('does not charge a group that only holds denials or pending approvals', async () => {
+    // e.g. a day where every call was denied (including BUDGET_EXCEEDED denials)
+    const sink = stubSink(summaryOf([row({ deny: 50 }, 50), row({ approve: 7 }, 7)]));
+    const status = await computeBudgetStatus(
+      policyWithBudget.budgets![0],
+      baseActor,
+      policyWithBudget,
+      sink
+    );
+    expect(status!.currentCalls).toBe(0);
+    expect(status!.currentUsd).toBe(0);
+  });
+
+  it('falls back to callCount only when a summary has no decision breakdown', async () => {
+    const sink = stubSink(summaryOf([row(undefined, 4)]));
+    const status = await computeBudgetStatus(
+      policyWithBudget.budgets![0],
+      baseActor,
+      policyWithBudget,
+      sink
+    );
+    expect(status!.currentCalls).toBe(4);
+  });
+});
+
+describe('budget — audit sink failure', () => {
+  it('hard rule denies when the sink cannot summarize usage', async () => {
+    const sink = stubSink(new Error('db down'));
+    const result = await checkBudget('http.request', baseActor, policyWithBudget, sink);
+    expect(result.denial?.decision).toBe('deny');
+    expect(result.denial?.reasonCode).toBe('BUDGET_USAGE_UNAVAILABLE');
+    expect(result.riskFlags).toContain('budget_usage_unavailable');
+  });
+
+  it('per-run hard rule also denies when the sink cannot summarize usage', async () => {
+    const sink = stubSink(new Error('db down'));
+    const denial = await enforceBudget('anthropic.proxy', runActor, runPolicy, sink);
+    expect(denial?.reasonCode).toBe('BUDGET_USAGE_UNAVAILABLE');
+  });
+
+  it('soft rule flags the failure and continues', async () => {
+    const softPolicy: Policy = {
+      ...policyWithBudget,
+      budgets: [{ ...policyWithBudget.budgets![0], mode: BudgetMode.Soft }],
+    };
+    const result = await checkBudget(
+      'http.request',
+      baseActor,
+      softPolicy,
+      stubSink(new Error('x'))
+    );
+    expect(result.denial).toBeNull();
+    expect(result.riskFlags).toContain('budget_usage_unavailable');
+  });
+
+  it('a sink with no aggregation support leaves budgets inert', async () => {
+    const sink: AuditSink = { name: 'write-only', async write() {} };
+    const result = await checkBudget('http.request', baseActor, policyWithBudget, sink);
+    expect(result).toEqual({ denial: null, riskFlags: [] });
   });
 });

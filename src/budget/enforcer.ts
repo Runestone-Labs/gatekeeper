@@ -12,6 +12,11 @@
  * collectively exceed the cap. For a self-hosted deployment this is fine; a
  * hosted multi-tenant tier should add a short in-memory reservation cache.
  *
+ * Hard rules fail CLOSED when usage can't be fully counted (the sink errored
+ * or returned a truncated summary): a lower bound can't prove a call is under
+ * its ceiling. Soft rules flag and continue. A sink with no summarizeUsage()
+ * at all leaves budgets inert, as before.
+ *
  * Per-RUN scope is the unit where agentic burn actually compounds: a single run
  * can recursively spend many multiples of a sibling run. Capping per run (keyed
  * on actor.runId) at the action boundary — with the existing allow / approve /
@@ -91,8 +96,8 @@ export function matchBudgetRule(actor: Actor | undefined, policy: Policy): Budge
 /**
  * Compute current spend/tokens/calls and remaining budget for a rule. Pass
  * `options.runId` to scope aggregation to a single run. Returns null if the
- * audit sink can't aggregate (callers treat that as "enforcement disabled"
- * rather than denying every call).
+ * audit sink can't aggregate or the aggregation failed; evaluateRule tells
+ * the two apart (inert vs. fail closed).
  */
 export async function computeBudgetStatus(
   rule: BudgetRule,
@@ -130,10 +135,11 @@ export async function computeBudgetStatus(
   for (const row of summary.rows) {
     // Attribute cost + calls to EXECUTIONS, not the paired request-log rows: a
     // single allowed tool call logs both an 'allow' and an 'executed' entry, so
-    // counting raw rows would double-charge flat-cost tools. Falls back to
-    // callCount for summaries without a decision breakdown. (Real model cost is
-    // already carried only on the executed row, so totalCostUsd is unaffected.)
-    const executedCount = row.decisions?.executed ?? row.callCount;
+    // counting raw rows would double-charge flat-cost tools. A breakdown with no
+    // 'executed' key means nothing ran (denials, pending approvals, dry runs);
+    // only a summary with NO breakdown falls back to callCount. (Real model cost
+    // is already carried only on the executed row, so totalCostUsd is unaffected.)
+    const executedCount = row.decisions ? (row.decisions.executed ?? 0) : row.callCount;
     currentCalls += executedCount;
     if (typeof row.totalTokens === 'number') currentTokens += row.totalTokens;
 
@@ -234,7 +240,15 @@ async function evaluateRule(
   const status = await computeBudgetStatus(rule, actor, policy, sink, {
     runId: isRun ? actor.runId : undefined,
   });
-  if (!status) return { denial: null, riskFlags: [] }; // sink can't aggregate — skip
+  if (!status) {
+    // No aggregation support at all: budgets are inert for this sink.
+    if (!sink.summarizeUsage) return { denial: null, riskFlags: [] };
+    // The sink can aggregate but failed (e.g. database down): nothing proves
+    // this call is under a hard ceiling.
+    const riskFlags = ['budget_usage_unavailable'];
+    if (rule.mode === BudgetMode.Soft) return { denial: null, riskFlags };
+    return { denial: buildUnverifiedDenial(rule, actor, isRun, 'unavailable'), riskFlags };
+  }
 
   const projectedUsd = status.currentUsd + thisCallCost;
   const overUsd = projectedUsd > rule.max_usd;
@@ -261,7 +275,7 @@ async function evaluateRule(
   if (rule.mode === BudgetMode.Soft) return { denial: null, riskFlags }; // observe, don't block
 
   // A truncated summary is a lower bound: "under the ceiling" can't be confirmed.
-  if (!over) return { denial: buildIncompleteDenial(rule, actor, isRun), riskFlags };
+  if (!over) return { denial: buildUnverifiedDenial(rule, actor, isRun, 'incomplete'), riskFlags };
 
   return {
     denial: buildDenial(rule, actor, status, {
@@ -276,20 +290,32 @@ async function evaluateRule(
   };
 }
 
-/** Deny a hard-budget call whose usage history came back truncated. */
-function buildIncompleteDenial(rule: BudgetRule, actor: Actor, isRun: boolean): PolicyEvaluation {
+/**
+ * Deny a hard-budget call whose usage history couldn't be fully counted:
+ * 'incomplete' = the sink returned a truncated summary, 'unavailable' = the
+ * sink's aggregation threw.
+ */
+function buildUnverifiedDenial(
+  rule: BudgetRule,
+  actor: Actor,
+  isRun: boolean,
+  cause: 'incomplete' | 'unavailable'
+): PolicyEvaluation {
   const subject = isRun ? `Run ${actor.runId}` : `Actor ${actor.name ?? actor.role ?? 'unknown'}`;
+  const what =
+    cause === 'incomplete'
+      ? `The audit sink returned a truncated usage summary for ${subject}`
+      : `The audit sink could not summarize usage for ${subject}`;
   return {
     decision: 'deny',
     reason: `Budget "${rule.name}" could not be verified`,
-    reasonCode: 'BUDGET_USAGE_INCOMPLETE',
-    humanExplanation:
-      `The audit sink returned a truncated usage summary for ${subject}, so the ` +
-      `"${rule.name}" hard budget cannot confirm this call is under its ceiling.`,
+    reasonCode: cause === 'incomplete' ? 'BUDGET_USAGE_INCOMPLETE' : 'BUDGET_USAGE_UNAVAILABLE',
+    humanExplanation: `${what}, so the "${rule.name}" hard budget cannot confirm this call is under its ceiling.`,
     remediation:
-      'Use an audit sink whose summarizeUsage() honors `limit: null` (returns every ' +
-      'group), or switch the rule to soft mode.',
-    riskFlags: ['budget_usage_incomplete'],
+      cause === 'incomplete'
+        ? 'Use an audit sink whose summarizeUsage() honors `limit: null` (returns every group), or switch the rule to soft mode.'
+        : 'Restore the audit sink (check the database connection and server logs), or switch the rule to soft mode.',
+    riskFlags: [`budget_usage_${cause}`],
   };
 }
 

@@ -29,7 +29,12 @@ const sink = new JsonlAuditSink();
  * per-entry chain verification (O(n²) at this volume); summarizeUsage does not
  * read the chain fields.
  */
-function seedExecutedCalls(n: number, nameFor: (i: number) => string, tool = 'files.write') {
+function seedExecutedCalls(
+  n: number,
+  nameFor: (i: number) => string,
+  tool = 'files.write',
+  decision: AuditEntry['decision'] = 'executed'
+) {
   mkdirSync(AUDIT_DIR, { recursive: true });
   const ts = new Date(Date.now() - 60_000).toISOString();
   const lines: string[] = [];
@@ -38,7 +43,7 @@ function seedExecutedCalls(n: number, nameFor: (i: number) => string, tool = 'fi
       timestamp: ts,
       requestId: `req-${i}`,
       tool,
-      decision: 'executed',
+      decision,
       actor: { type: 'agent', name: nameFor(i), role: 'probe' },
       argsSummary: '{}',
       riskFlags: [],
@@ -100,6 +105,19 @@ describe('budget enforcement counts every usage group (jsonl sink)', () => {
 
     const { denial } = await checkBudget('files.write', nextCaller, policy, sink);
     expect(denial?.reasonCode).toBe('BUDGET_EXCEEDED');
+  });
+
+  it('does not charge denied calls, even in groups with no executions', async () => {
+    seedExecutedCalls(1200, (i) => `denied-${i}`, 'files.write', 'deny');
+    seedExecutedCalls(5, (i) => `agent-${i}`);
+    const policy = policyWith({ max_calls: 6, max_usd: 10_000 });
+
+    const status = await computeBudgetStatus(policy.budgets![0], nextCaller, policy, sink);
+    expect(status?.currentCalls).toBe(5);
+    expect(status?.currentUsd).toBe(5);
+
+    const { denial } = await checkBudget('files.write', nextCaller, policy, sink);
+    expect(denial).toBeNull();
   });
 
   it('still allows a call that is genuinely under the ceiling at high group counts', async () => {
