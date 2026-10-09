@@ -70,7 +70,10 @@ export class PostgresAuditSink implements AuditSink {
     }
 
     const db = getDb();
-    const limit = Math.max(1, Math.min(filter.limit ?? 500, 5000));
+    // limit: null → every group (budget enforcement); otherwise cap for reporting.
+    // Fetch one extra row so a capped result can report that it was truncated.
+    const limit = filter.limit === null ? null : Math.max(1, Math.min(filter.limit ?? 500, 5000));
+    const limitClause = limit === null ? sql`` : sql`LIMIT ${limit + 1}`;
 
     // Build WHERE fragments. Use bound parameters via drizzle's sql template.
     const wheres = [];
@@ -128,11 +131,14 @@ export class PostgresAuditSink implements AuditSink {
       ${whereClause}
       GROUP BY actor_name, actor_role, ${auditLogs.tool}, day
       ORDER BY call_count DESC, day DESC
-      LIMIT ${limit}
+      ${limitClause}
     `);
 
     // Drizzle returns pg QueryResult; rows live on .rows
-    const resultRows: UsageQueryRow[] = queryResult.rows;
+    const truncated = limit !== null && queryResult.rows.length > limit;
+    const resultRows: UsageQueryRow[] = truncated
+      ? queryResult.rows.slice(0, limit)
+      : queryResult.rows;
 
     const out: UsageRow[] = resultRows.map((r) => {
       const decisionCounts: Record<string, number> = {};
@@ -160,6 +166,7 @@ export class PostgresAuditSink implements AuditSink {
     return {
       rows: out,
       totalCalls,
+      truncated,
       distinctActors,
       distinctTools,
       filter,

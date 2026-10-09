@@ -40,6 +40,11 @@ export interface BudgetStatus {
   remainingUsd: number;
   currentTokens: number;
   currentCalls: number;
+  /**
+   * False when the sink returned a truncated summary, so the totals above are a
+   * lower bound. Hard rules deny rather than permit on an incomplete count.
+   */
+  complete: boolean;
   exceeded: boolean;
   byTool: Array<{ tool: string; callCount: number; costUsd: number }>;
 }
@@ -102,7 +107,10 @@ export async function computeBudgetStatus(
   const filter: UsageFilter = {
     since: windowStartISO(rule.window, now),
     until: now.toISOString(),
-    limit: 1000,
+    // Every group, not a top-N: rows are sorted by call count, so any cap drops
+    // the smallest groups and a role/run rule spanning many actor names, tools
+    // or days would undercount calls, tokens and USD past a hard ceiling.
+    limit: null,
   };
   if (rule.match.actor_name) filter.actorName = rule.match.actor_name;
   if (rule.match.actor_role) filter.actorRole = rule.match.actor_role;
@@ -160,6 +168,7 @@ export async function computeBudgetStatus(
     remainingUsd,
     currentTokens,
     currentCalls,
+    complete: summary.truncated !== true,
     exceeded: currentUsd >= rule.max_usd,
     byTool,
   };
@@ -237,6 +246,7 @@ async function evaluateRule(
     rule.max_calls && rule.max_calls > 0 ? (status.currentCalls + 1) / rule.max_calls : 0
   );
   const riskFlags: string[] = [];
+  if (!status.complete) riskFlags.push('budget_usage_incomplete');
   if (maxRatio >= 0.8) {
     riskFlags.push('budget_threshold:80');
     if (isRun) riskFlags.push('run_budget_threshold:80');
@@ -245,9 +255,13 @@ async function evaluateRule(
     riskFlags.push('budget_threshold:100');
     if (isRun) riskFlags.push('run_budget_threshold:100');
   }
-  if (!overUsd && !overTokens && !overCalls) return { denial: null, riskFlags };
+  const over = overUsd || overTokens || overCalls;
+  if (!over && status.complete) return { denial: null, riskFlags };
 
   if (rule.mode === BudgetMode.Soft) return { denial: null, riskFlags }; // observe, don't block
+
+  // A truncated summary is a lower bound: "under the ceiling" can't be confirmed.
+  if (!over) return { denial: buildIncompleteDenial(rule, actor, isRun), riskFlags };
 
   return {
     denial: buildDenial(rule, actor, status, {
@@ -259,6 +273,23 @@ async function evaluateRule(
       isRun,
     }),
     riskFlags,
+  };
+}
+
+/** Deny a hard-budget call whose usage history came back truncated. */
+function buildIncompleteDenial(rule: BudgetRule, actor: Actor, isRun: boolean): PolicyEvaluation {
+  const subject = isRun ? `Run ${actor.runId}` : `Actor ${actor.name ?? actor.role ?? 'unknown'}`;
+  return {
+    decision: 'deny',
+    reason: `Budget "${rule.name}" could not be verified`,
+    reasonCode: 'BUDGET_USAGE_INCOMPLETE',
+    humanExplanation:
+      `The audit sink returned a truncated usage summary for ${subject}, so the ` +
+      `"${rule.name}" hard budget cannot confirm this call is under its ceiling.`,
+    remediation:
+      'Use an audit sink whose summarizeUsage() honors `limit: null` (returns every ' +
+      'group), or switch the rule to soft mode.',
+    riskFlags: ['budget_usage_incomplete'],
   };
 }
 

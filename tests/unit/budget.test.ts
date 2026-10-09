@@ -412,3 +412,67 @@ describe('budget — per-run scope', () => {
     expect(await enforceBudget('anthropic.proxy', runActor, softPolicy, sink)).toBeNull();
   });
 });
+
+describe('budget — incomplete usage history', () => {
+  it('asks the sink for every group, not a top-N', async () => {
+    let seen: UsageFilter | undefined;
+    const sink: AuditSink = {
+      ...stubSink(null),
+      async summarizeUsage(filter: UsageFilter) {
+        seen = filter;
+        return { ...makeSummary([]), filter };
+      },
+    };
+    await computeBudgetStatus(policyWithBudget.budgets![0], baseActor, policyWithBudget, sink);
+    expect(seen?.limit).toBeNull();
+  });
+
+  it('hard rule denies when a truncated summary is still under the ceiling', async () => {
+    // $0.10 counted, well under $1.00 — but the sink says groups were cut off.
+    const sink = stubSink({
+      ...makeSummary([{ tool: 'http.request', callCount: 10 }]),
+      truncated: true,
+    });
+    const status = await computeBudgetStatus(
+      policyWithBudget.budgets![0],
+      baseActor,
+      policyWithBudget,
+      sink
+    );
+    expect(status?.complete).toBe(false);
+
+    const result = await checkBudget('http.request', baseActor, policyWithBudget, sink);
+    expect(result.denial?.reasonCode).toBe('BUDGET_USAGE_INCOMPLETE');
+    expect(result.riskFlags).toContain('budget_usage_incomplete');
+  });
+
+  it('reports BUDGET_EXCEEDED when a truncated summary is already over', async () => {
+    const sink = stubSink({
+      ...makeSummary([{ tool: 'http.request', callCount: 500 }]),
+      truncated: true,
+    });
+    const denial = await enforceBudget('http.request', baseActor, policyWithBudget, sink);
+    expect(denial?.reasonCode).toBe('BUDGET_EXCEEDED');
+  });
+
+  it('soft rule observes a truncated summary without blocking', async () => {
+    const softPolicy: Policy = {
+      ...policyWithBudget,
+      budgets: [{ ...policyWithBudget.budgets![0], mode: BudgetMode.Soft }],
+    };
+    const sink = stubSink({
+      ...makeSummary([{ tool: 'http.request', callCount: 10 }]),
+      truncated: true,
+    });
+    const result = await checkBudget('http.request', baseActor, softPolicy, sink);
+    expect(result.denial).toBeNull();
+    expect(result.riskFlags).toContain('budget_usage_incomplete');
+  });
+
+  it('a complete summary carries no incomplete flag', async () => {
+    const sink = stubSink(makeSummary([{ tool: 'http.request', callCount: 10 }]));
+    const result = await checkBudget('http.request', baseActor, policyWithBudget, sink);
+    expect(result.denial).toBeNull();
+    expect(result.riskFlags).not.toContain('budget_usage_incomplete');
+  });
+});

@@ -195,8 +195,12 @@ export interface UsageFilter {
   tool?: string;
   /** Restrict to a single agentic run (matched on actor.runId). Powers per-run budgets. */
   runId?: string;
-  /** Hard cap on returned rows. Defaults to 500. */
-  limit?: number;
+  /**
+   * Hard cap on returned rows. Defaults to 500. `null` returns EVERY group —
+   * budget enforcement needs complete history, because the rows are sorted by
+   * call count and a cap silently drops the smallest groups from the total.
+   */
+  limit?: number | null;
 }
 
 export interface UsageRow {
@@ -221,8 +225,13 @@ export interface UsageRow {
 
 export interface UsageSummary {
   rows: UsageRow[];
-  /** Total call count across all returned rows (post-filter, pre-limit). */
+  /** Total call count across the returned rows (post-filter, post-limit). */
   totalCalls: number;
+  /**
+   * True when the limit cut off groups, so `rows` / `totalCalls` undercount the
+   * window. Budget enforcement refuses to treat a truncated summary as complete.
+   */
+  truncated?: boolean;
   /** Distinct actors seen. */
   distinctActors: number;
   /** Distinct tools seen. */
