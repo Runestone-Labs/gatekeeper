@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { join } from 'node:path';
 import pg from 'pg';
+import { migrateTestDb } from '../helpers/migrate-test-db.js';
 
 /**
  * Applies the full drizzle/ migration set to a REAL database and verifies the
@@ -23,10 +23,8 @@ describeDb('migrations + transactions on a real database', () => {
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: TEST_DATABASE_URL });
 
-    // Same mechanism as scripts/migrate.ts.
-    const { drizzle } = await import('drizzle-orm/node-postgres');
-    const { migrate } = await import('drizzle-orm/node-postgres/migrator');
-    await migrate(drizzle(pool), { migrationsFolder: join(process.cwd(), 'drizzle') });
+    // Same mechanism as scripts/migrate.ts, serialized across test files.
+    await migrateTestDb(pool);
 
     // Boot the app's own db client against the test database so the memory
     // tools run their production code path.
