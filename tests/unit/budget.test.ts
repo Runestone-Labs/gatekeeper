@@ -41,7 +41,7 @@ function makeSummary(rows: Array<{ tool: string; callCount: number }>): UsageSum
       day: '2026-04-19',
       callCount: r.callCount,
       totalDurationMs: r.callCount * 100,
-      decisions: { allow: r.callCount },
+      decisions: { executed: r.callCount },
     })),
     totalCalls: rows.reduce((s, r) => s + r.callCount, 0),
     distinctActors: 1,
@@ -394,5 +394,214 @@ describe('budget — per-run scope', () => {
       makeRichSummary([{ tool: 'anthropic.proxy', callCount: 10, totalCostUsd: 99 }])
     );
     expect(await enforceBudget('anthropic.proxy', runActor, softPolicy, sink)).toBeNull();
+  });
+});
+
+describe('budget — incomplete usage history', () => {
+  it('asks the sink for every group, not a top-N', async () => {
+    let seen: UsageFilter | undefined;
+    const sink: AuditSink = {
+      ...stubSink(null),
+      async summarizeUsage(filter: UsageFilter) {
+        seen = filter;
+        return { ...makeSummary([]), filter };
+      },
+    };
+    await computeBudgetStatus(policyWithBudget.budgets![0], baseActor, policyWithBudget, sink);
+    expect(seen?.limit).toBeNull();
+  });
+
+  it('hard rule denies when a truncated summary is still under the ceiling', async () => {
+    // $0.10 counted, well under $1.00 — but the sink says groups were cut off.
+    const sink = stubSink({
+      ...makeSummary([{ tool: 'http.request', callCount: 10 }]),
+      truncated: true,
+    });
+    const status = await computeBudgetStatus(
+      policyWithBudget.budgets![0],
+      baseActor,
+      policyWithBudget,
+      sink
+    );
+    expect(status?.complete).toBe(false);
+    const denial = await enforceBudget('http.request', baseActor, policyWithBudget, sink);
+    expect(denial?.reasonCode).toBe('BUDGET_USAGE_INCOMPLETE');
+  });
+
+  it('reports BUDGET_EXCEEDED when a truncated summary is already over', async () => {
+    const sink = stubSink({
+      ...makeSummary([{ tool: 'http.request', callCount: 500 }]),
+      truncated: true,
+    });
+    const denial = await enforceBudget('http.request', baseActor, policyWithBudget, sink);
+    expect(denial?.reasonCode).toBe('BUDGET_EXCEEDED');
+  });
+
+  it('soft rule permits on a truncated summary', async () => {
+    const softPolicy: Policy = {
+      ...policyWithBudget,
+      budgets: [{ ...policyWithBudget.budgets![0], mode: BudgetMode.Soft }],
+    };
+    const sink = stubSink({
+      ...makeSummary([{ tool: 'http.request', callCount: 10 }]),
+      truncated: true,
+    });
+    expect(await enforceBudget('http.request', baseActor, softPolicy, sink)).toBeNull();
+  });
+});
+
+describe('budget — what counts as a call', () => {
+  function row(decisions: Record<string, number> | undefined, callCount: number): UsageRow {
+    return {
+      actorName: 'agent',
+      actorRole: 'researcher',
+      tool: 'http.request',
+      day: '2026-04-19',
+      callCount,
+      totalDurationMs: null,
+      decisions: decisions as Record<string, number>,
+      totalCostUsd: null,
+      totalTokens: null,
+    };
+  }
+  function summaryOf(rows: UsageRow[]): UsageSummary {
+    return {
+      rows,
+      totalCalls: rows.reduce((s, r) => s + r.callCount, 0),
+      distinctActors: 1,
+      distinctTools: 1,
+      filter: {},
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  it('does not charge a group that only holds denials or pending approvals', async () => {
+    const sink = stubSink(summaryOf([row({ deny: 50 }, 50), row({ approve: 7 }, 7)]));
+    const status = await computeBudgetStatus(
+      policyWithBudget.budgets![0],
+      baseActor,
+      policyWithBudget,
+      sink
+    );
+    expect(status!.currentCalls).toBe(0);
+    expect(status!.currentUsd).toBe(0);
+  });
+
+  it('falls back to callCount only when a summary has no decision breakdown', async () => {
+    const sink = stubSink(summaryOf([row(undefined, 4)]));
+    const status = await computeBudgetStatus(
+      policyWithBudget.budgets![0],
+      baseActor,
+      policyWithBudget,
+      sink
+    );
+    expect(status!.currentCalls).toBe(4);
+  });
+});
+
+describe('budget — audit sink failure', () => {
+  it('hard rule denies when the sink cannot summarize usage', async () => {
+    const denial = await enforceBudget(
+      'http.request',
+      baseActor,
+      policyWithBudget,
+      stubSink(new Error('db down'))
+    );
+    expect(denial?.decision).toBe('deny');
+    expect(denial?.reasonCode).toBe('BUDGET_USAGE_UNAVAILABLE');
+  });
+
+  it('per-run hard rule also denies when the sink cannot summarize usage', async () => {
+    const denial = await enforceBudget(
+      'anthropic.proxy',
+      runActor,
+      runPolicy,
+      stubSink(new Error('db down'))
+    );
+    expect(denial?.reasonCode).toBe('BUDGET_USAGE_UNAVAILABLE');
+  });
+
+  it('soft rule permits when the sink cannot summarize usage', async () => {
+    const softPolicy: Policy = {
+      ...policyWithBudget,
+      budgets: [{ ...policyWithBudget.budgets![0], mode: BudgetMode.Soft }],
+    };
+    expect(
+      await enforceBudget('http.request', baseActor, softPolicy, stubSink(new Error('x')))
+    ).toBeNull();
+  });
+
+  it('a sink with no aggregation support leaves budgets inert', async () => {
+    const sink: AuditSink = { name: 'write-only', async write() {} };
+    expect(await enforceBudget('http.request', baseActor, policyWithBudget, sink)).toBeNull();
+  });
+});
+
+describe('budget — actor-scope ceilings bind every matched call', () => {
+  const actorRule = policyWithBudget.budgets![0];
+
+  it('max_calls caps free tools too (every call counts toward it)', async () => {
+    const policy: Policy = { ...policyWithBudget, budgets: [{ ...actorRule, max_calls: 10 }] };
+    const sink = stubSink(makeSummary([{ tool: 'files.read', callCount: 10 }]));
+    const denial = await enforceBudget('files.read', baseActor, policy, sink);
+    expect(denial?.reasonCode).toBe('BUDGET_EXCEEDED');
+    expect(denial?.humanExplanation).toContain('10 tool calls');
+  });
+
+  it('max_tokens caps proxied model calls', async () => {
+    const policy: Policy = {
+      tools: { 'anthropic.proxy': { decision: 'allow' } },
+      budgets: [
+        {
+          name: 'openclaw-daily',
+          match: { actor_role: 'openclaw' },
+          window: BudgetWindow.Day,
+          max_usd: 100,
+          max_tokens: 1000,
+        },
+      ],
+    };
+    const actor: Actor = { type: 'agent', name: 'openclaw', role: 'openclaw' };
+    const sink = stubSink(
+      makeRichSummary([
+        { tool: 'anthropic.proxy', callCount: 3, totalCostUsd: 0.1, totalTokens: 1500 },
+      ])
+    );
+    expect((await enforceBudget('anthropic.proxy', actor, policy, sink))?.reasonCode).toBe(
+      'BUDGET_EXCEEDED'
+    );
+  });
+
+  it('max_usd caps proxied model calls on real accrued spend', async () => {
+    const policy: Policy = {
+      tools: { 'anthropic.proxy': { decision: 'allow' } },
+      budgets: [
+        {
+          name: 'openclaw-daily',
+          match: { actor_role: 'openclaw' },
+          window: BudgetWindow.Day,
+          max_usd: 5,
+        },
+      ],
+    };
+    const actor: Actor = { type: 'agent', name: 'openclaw', role: 'openclaw' };
+    const sink = stubSink(
+      makeRichSummary([{ tool: 'anthropic.proxy', callCount: 40, totalCostUsd: 6.25 }])
+    );
+    const denial = await enforceBudget('anthropic.proxy', actor, policy, sink);
+    expect(denial?.reasonCode).toBe('BUDGET_EXCEEDED');
+    expect(denial?.humanExplanation).toContain('$6.25');
+    expect(denial?.humanExplanation).not.toContain('This call would cost');
+  });
+
+  it('a USD-only rule still lets free tools run once the cap is hit (v1)', async () => {
+    const sink = stubSink(makeSummary([{ tool: 'http.request', callCount: 500 }])); // $5 > $1
+    expect(await enforceBudget('files.read', baseActor, policyWithBudget, sink)).toBeNull();
+  });
+
+  it('a USD-only rule still denies a priced tool once the cap is hit', async () => {
+    const sink = stubSink(makeSummary([{ tool: 'http.request', callCount: 500 }]));
+    const denial = await enforceBudget('http.request', baseActor, policyWithBudget, sink);
+    expect(denial?.reasonCode).toBe('BUDGET_EXCEEDED');
   });
 });
