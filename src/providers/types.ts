@@ -47,6 +47,10 @@ export interface AuditSink {
    * Optionally summarize usage (call counts / durations) across the audit
    * log. Sinks that can't efficiently aggregate (e.g. append-only files)
    * may leave this unimplemented; the server responds 501 in that case.
+   *
+   * Budget enforcement calls this with `limit: null` and relies on getting
+   * every group back. A sink that still caps rows must set `truncated: true`,
+   * or hard budget ceilings will undercount.
    */
   summarizeUsage?(filter: UsageFilter): Promise<UsageSummary>;
 }

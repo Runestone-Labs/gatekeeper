@@ -243,7 +243,9 @@ export class JsonlAuditSink implements AuditSink {
       }
     }
 
-    const limit = Math.max(1, Math.min(filter.limit ?? 500, 5000));
+    // limit: null → every group (budget enforcement); otherwise cap for reporting.
+    const limit =
+      filter.limit === null ? Infinity : Math.max(1, Math.min(filter.limit ?? 500, 5000));
     const rows: UsageRow[] = [...buckets.values()]
       .sort((a, b) => b.callCount - a.callCount || (a.day < b.day ? 1 : -1))
       .slice(0, limit);
@@ -256,6 +258,7 @@ export class JsonlAuditSink implements AuditSink {
     return {
       rows,
       totalCalls,
+      truncated: rows.length < buckets.size,
       distinctActors,
       distinctTools,
       filter,
