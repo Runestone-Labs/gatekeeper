@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Hard budget ceilings now count every usage group in the window. The
+  enforcer read at most 1,000 (actor x role x tool x day) groups and treated
+  them as complete, so a role- or run-scoped rule spanning more groups
+  undercounted `max_calls`, `max_usd` and `max_tokens` and permitted calls
+  past the ceiling. Affects v0.3.1 through v0.6.0.
+- Hard budgets fail closed: if the audit sink's usage aggregation errors or
+  returns a truncated summary, the call is denied
+  (`BUDGET_USAGE_UNAVAILABLE` / `BUDGET_USAGE_INCOMPLETE`) instead of
+  enforcement being skipped. Soft rules flag `budget_usage_*` and continue.
+
+### Fixed
+
+- Actor-scope `max_calls` and `max_tokens` now bind every matched call, and
+  actor-scope `max_usd` binds proxied model calls on their real metered cost.
+  Previously any tool without a flat `cost_usd` (including
+  `anthropic.proxy`) skipped actor-scope budgets entirely.
+- Denied calls, pending approvals and dry runs are no longer charged against
+  a budget when their usage group has no executions.
+- `/usage` responses report `truncated: true` when `limit` cut groups off.
+
 ## [0.7.0] - 2026-08-24
 
 ### Added

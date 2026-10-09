@@ -411,10 +411,11 @@ GATEKEEPER_URL=http://127.0.0.1:3847 npx tsx integrations/live-test.ts
 
 ## Budgets (Cost-Aware Enforcement)
 
-Budgets cap how much USD a given actor (by name and/or role) can accrue within
-a rolling window. The gatekeeper sums `cost_usd` across matched tool calls in
-the window and either blocks further calls (hard mode) or logs a risk flag
-(soft mode) once the cap is hit.
+Budgets cap how much USD, how many tokens, and how many calls a given actor (by
+name and/or role) — or a single agentic run — can accrue within a rolling
+window. The gatekeeper totals every matched, executed call in the window from
+the audit log and either blocks further calls (hard mode) or logs a risk flag
+(soft mode) once a ceiling is hit.
 
 ```yaml
 budgets:
@@ -424,7 +425,7 @@ budgets:
     window: day          # hour | day | week
     max_usd: 5.00
     mode: hard           # hard (default) rejects with BUDGET_EXCEEDED
-                         # soft permits but adds a `budget_soft_exceeded` risk flag
+                         # soft permits; `budget_threshold:80` / `:100` risk flags still fire
 
   - name: pm-thesis-hourly
     match:
@@ -438,16 +439,34 @@ budgets:
 | `name` | string | Descriptive label surfaced in denial reasons and `/budget` responses |
 | `match.actor_name` | string | Optional — if set, only matches calls from this actor name |
 | `match.actor_role` | string | Optional — if set, only matches calls from this actor role. At least one of `actor_name`/`actor_role` must be set |
+| `scope` | enum | `actor` (default) = total across everything the rule matches. `run` = cap each `actor.runId` separately (calls without a `runId` are skipped) |
 | `window` | enum | `hour`, `day`, or `week`. Window is rolling, anchored at request time |
-| `max_usd` | number | USD cap. Sums `cost_usd` across tool calls in the window |
+| `max_usd` | number | USD cap. Real metered cost (proxied model calls) when recorded, else `cost_usd` × executed calls |
+| `max_tokens` | number | Optional token ceiling (input + output + cache tokens from proxied model calls) |
+| `max_calls` | number | Optional ceiling on executed calls |
 | `mode` | enum | `hard` (default) = deny once exceeded. `soft` = permit + flag |
 
 **How it interacts with other rules:**
 - Budgets are evaluated *after* the base policy decision. A deny from policy
   short-circuits; a policy `allow`/`approve` can still be converted to
   `BUDGET_EXCEEDED` deny if the cap is hit.
-- Tools without a `cost_usd` contribute zero to the running total. Set
-  `cost_usd` on the tools you want metered (typically `http.request`).
+- Only executed calls count. Denied calls, pending approvals and dry runs
+  are never charged.
+- Tools without a `cost_usd` contribute zero USD (proxied model calls carry
+  their real metered cost instead). Set `cost_usd` on the tools you want
+  metered (typically `http.request`).
+- `max_calls` and `max_tokens` bind every matched call. Under an actor-scope
+  rule with only `max_usd`, tools that can't add spend (no `cost_usd`, not a
+  model call) stay usable after the cap is hit.
+- Hard rules fail closed: if the audit sink's aggregation errors
+  (`BUDGET_USAGE_UNAVAILABLE`) or returns a truncated summary
+  (`BUDGET_USAGE_INCOMPLETE`), the call is denied rather than assumed to be
+  under the cap. Soft rules add the matching `budget_usage_*` risk flag.
+- Budgets are pre-checks against the audit log, so concurrent calls can race
+  past a ceiling together; cap concurrency in the agent if that matters.
+- Actor fields come from the request envelope and are not authenticated, so
+  budgets cap cooperating agents and integrations that pin actor identity; they
+  are not a boundary against a caller that can choose its own role or `runId`.
 - Spend is computed from the same audit log that the `/audit` endpoint
   reads, so `AUDIT_SINK=postgres` or `AUDIT_SINK=jsonl` both work.
 - `GET /budget` returns the current spend vs cap for each rule, useful for
