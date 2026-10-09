@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { join } from 'node:path';
 import pg from 'pg';
+import { migrateTestDb } from '../helpers/migrate-test-db.js';
 import { BudgetMode, BudgetWindow } from '../../src/types.js';
 import type { Actor, Policy } from '../../src/types.js';
 
@@ -37,9 +37,7 @@ describeDb('budget enforcement counts every usage group (postgres sink)', () => 
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: TEST_DATABASE_URL });
-    const { drizzle } = await import('drizzle-orm/node-postgres');
-    const { migrate } = await import('drizzle-orm/node-postgres/migrator');
-    await migrate(drizzle(pool), { migrationsFolder: join(process.cwd(), 'drizzle') });
+    await migrateTestDb(pool);
 
     process.env.DATABASE_URL = TEST_DATABASE_URL;
     const { initDb } = await import('../../src/db/client.js');
