@@ -163,7 +163,7 @@ The approver clicks the signed URL (sent via the configured approval provider). 
 }
 ```
 
-Common `reasonCode` values: `UNKNOWN_TOOL`, `MISSING_ACTOR_ROLE`, `COMMAND_NOT_ALLOWED`, `PATH_NOT_ALLOWED`, `DOMAIN_NOT_ALLOWED`, `SIZE_EXCEEDED`, `TIMEOUT_EXCEEDED`, `TAINTED_WRITE_SYSTEM_PATH`, `PRINCIPAL_PATTERN_DENIED`, `IDEMPOTENCY_KEY_CONFLICT`, `BUDGET_EXCEEDED`.
+Common `reasonCode` values: `UNKNOWN_TOOL`, `MISSING_ACTOR_ROLE`, `COMMAND_NOT_ALLOWED`, `PATH_NOT_ALLOWED`, `DOMAIN_NOT_ALLOWED`, `SIZE_EXCEEDED`, `TIMEOUT_EXCEEDED`, `TAINTED_WRITE_SYSTEM_PATH`, `PRINCIPAL_PATTERN_DENIED`, `IDEMPOTENCY_KEY_CONFLICT`, `BUDGET_EXCEEDED`, `RUN_BUDGET_EXCEEDED`, `BUDGET_USAGE_INCOMPLETE`, `BUDGET_USAGE_UNAVAILABLE`.
 
 **Response — error** (`400`/`404`/`409`/`500`)
 See [Error shape](#error-shape).
@@ -232,7 +232,7 @@ Requires an audit sink that implements aggregation (`jsonl` does an in-memory sc
 | `actorName` | string | — | Filter. |
 | `actorRole` | string | — | Filter. |
 | `tool` | string | — | Filter. |
-| `limit` | number | 500 (max 5000) | |
+| `limit` | number | 500 (max 5000) | Rows are sorted by call count, so a capped response drops the smallest groups; `truncated: true` says so. Budget enforcement always reads every group. |
 
 **Response**
 ```json
@@ -289,6 +289,9 @@ Current spend vs cap for each configured budget rule. Uses the active audit sink
         "windowEnd": "2026-04-19T12:00:00.000Z",
         "currentUsd": 2.47,
         "remainingUsd": 2.53,
+        "currentTokens": 0,
+        "currentCalls": 247,
+        "complete": true,
         "exceeded": false,
         "byTool": [
           { "tool": "http.request", "callCount": 247, "costUsd": 2.47 }
@@ -309,7 +312,7 @@ Current spend vs cap for each configured budget rule. Uses the active audit sink
 }
 ```
 
-`status` is `null` when the sink can't aggregate; treat that as "enforcement inactive" rather than "over budget."
+`status` is `null` when the sink can't aggregate (budgets are inactive) or its aggregation failed (hard rules then deny with `BUDGET_USAGE_UNAVAILABLE`). `complete: false` means the sink returned a truncated summary, so the totals are a lower bound; hard rules deny with `BUDGET_USAGE_INCOMPLETE` rather than treat it as under the cap.
 
 ---
 
@@ -385,7 +388,7 @@ The wildcard subpath (`/v1/messages` and siblings) plus the querystring is appen
 
 Calls are attributed to `{ "name": "openclaw", "role": "openclaw" }` by default. Override per request with the `x-runestone-actor` and `x-runestone-role` headers to attribute inference to a specific agent in the audit log.
 
-**v1 is observe-first** — proxied calls are audited and allowed; the policy hook to deny based on model/actor/etc. is a future addition (same posture as budgets).
+**v1 is observe-first** — proxied calls are audited and allowed; a policy hook to deny based on model/actor/etc. is a future addition. The one gate today is `budgets:`: a matching hard rule denies a proxied call once the actor's or run's real accrued spend, tokens or call count is over its ceiling.
 
 **Response — error** (`502`)
 

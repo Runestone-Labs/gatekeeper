@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-16
+
+### Security
+
+- Hard budget ceilings now count every usage group in the window
+  ([GHSA-cx7x-pmr5-wx5f](https://github.com/Runestone-Labs/gatekeeper/security/advisories/GHSA-cx7x-pmr5-wx5f)).
+  The enforcer read at most 1,000 (actor x role x tool x day) groups and
+  treated them as complete, so a role- or run-scoped rule spanning more groups
+  undercounted `max_calls`, `max_usd` and `max_tokens` and permitted calls
+  past the ceiling. Affects v0.3.1 through v0.6.0. Reported privately by an
+  independent researcher.
+- Hard budgets fail closed: if the audit sink's usage aggregation errors or
+  returns a truncated summary, the call is denied
+  (`BUDGET_USAGE_UNAVAILABLE` / `BUDGET_USAGE_INCOMPLETE`) instead of
+  enforcement being skipped. Soft rules permit.
+
+### Fixed
+
+- Actor-scope `max_calls` and `max_tokens` now bind every matched call, and
+  actor-scope `max_usd` binds proxied model calls on their real metered cost.
+  Previously any tool without a flat `cost_usd` (including
+  `anthropic.proxy`) skipped actor-scope budgets entirely.
+- Denied calls, pending approvals and dry runs are no longer charged against
+  a budget when their usage group has no executions.
+- `/usage` responses report `truncated: true` when `limit` cut groups off.
+
+### Upgrade notes
+
+- With the Postgres audit sink, hard budgets now deny budgeted calls while the
+  database is unreachable. Use `mode: soft` for rules that must never block.
+- Actor-scope rules with `max_calls` / `max_tokens` now also gate tools with
+  no `cost_usd` and proxied model calls.
+
 ## [0.6.0] - 2026-06-23
 
 ### Added
